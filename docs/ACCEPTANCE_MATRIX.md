@@ -1,0 +1,59 @@
+# Матрица приёмочных испытаний основного сервиса
+
+Дата: 22.11.2026. Реализация: восемь правил, ruleset_version=1. Способ запуска — локальный CLI. Новый набор: `tests/test_iteration09_acceptance.py`; прежние тесты в итерации 9 не запускались.
+
+## Матрица восьми правил
+
+Для каждой строки новый тест `test_rule_matrix_private_risky_and_unavailable_through_cli` сохраняет валидный снимок, запускает настоящий CLI отдельным процессом без S3-ключей, читает результат аудита и проверяет статус. Это синтетические входные данные, не реальные права внешнего аккаунта.
+
+| Правило | Ошибочная/рискованная конфигурация → ожидаемый результат | Допустимая конфигурация → ожидаемый результат | Недоступные источники → ожидаемый результат |
+|---|---|---|---|
+| bucket-versioning-enabled | Disabled при обязательном контроле → confirmed_violation | Enabled → passed | insufficient_data |
+| anonymous-read | Безусловный публичный GetObject выбранного файла → potential_risk | Нет публичных грантов, ACL отключены → passed | insufficient_data |
+| anonymous-list | Публичный ListBucket → potential_risk | Нет публичных грантов → passed | insufficient_data |
+| anonymous-write | Публичный PutObject → potential_risk | Нет публичных грантов → passed | insufficient_data |
+| anonymous-delete | Публичный DeleteObject → potential_risk | Нет публичных грантов → passed | insufficient_data |
+| unapproved-external-access | Явный GetObject внешнему пользователю вне списка разрешённых → potential_risk | Внешних грантов нет → passed | insufficient_data |
+| excess-explicit-permissions | Наблюдаемые read+delete при необходимых read → potential_risk | Наблюдаемые read при необходимых read → passed | insufficient_data |
+| bucket-acl-disabled | BucketOwnerPreferred без обязательного acl_disabled → potential_risk | BucketOwnerEnforced → passed | insufficient_data |
+
+Итого 24 сочетания «правило/конфигурация». Фактические статусы совпали со всеми ожидаемыми. У находок проверены ненулевой риск, доказательства, рекомендация и способ подтверждения; у insufficient_data — неизвестная оценка, код CLI 3. Passed относится к правилу и выбранному охвату, не ко всему хранилищу.
+
+## Сквозные и отрицательные сценарии
+
+| Новый тест | Проверяемое поведение | Результат |
+|---|---|---|
+| test_default_eight_rules_persist_and_check_runs_without_cloud_credentials | check, запуск всех восьми правил по одному снимку с заданной baseline, чтение SQLite другим процессом | ok; восемь passed в пределах искусственной конфигурации |
+| test_fresh_remediation_history_export_and_repeated_snapshot | Disabled→Enabled, сравнение, история, Markdown 0600, повторная оценка того же снимка | resolved; две записи; повторный passed→passed — unchanged |
+| test_exception_keeps_violation_and_changed_coverage_cannot_resolve | Исключение сохраняет находку; снятие охвата выбранных объектов | Нарушение остаётся с reason; сравнение unverified, код 3 |
+| test_no_selected_objects_never_means_read_access_was_checked | Нет выбранных объектов | anonymous-read insufficient_data, код 3 |
+| test_api_errors_and_unknown_conditions_remain_unverified | AccessDenied, сеть, лимит API, неподдерживаемый API в снимке; неизвестное Condition | insufficient_data, не resolved |
+| test_live_cli_collection_failures_are_recorded_without_false_remediation | CLI свежего аудита с внедрённым ошибающимся коллектором: отказ доступа, ошибка запроса, отсутствие ресурса | Три failed без находок, сравнение код 2 |
+| test_cloud_error_history_never_creates_a_clean_report | Сохранённый failed, чтение истории/сравнение через разные процессы | Нет выдуманного passed/resolved |
+
+Вместе с матрицей — восемь тестовых методов. Подмена коллектора в отрицательном тесте не является облачным экспериментом с IAM. Реальное отсутствие удалённого учебного бакета проверено отдельно.
+
+## Реальный VK Cloud
+
+Изолированный новый бакет, только искусственный файл. Read/list: denied→allowed→denied. Находки: passed→confirmed_violation→passed; сравнение: new→resolved, с доказательствами новых unsigned-отказов на тех же целях. Write/delete не открывались, их passed получены из конфигурации. Удаление стенда подтверждено успешной уборкой и последующим отказом аудита отсутствующего бакета. Отказ записан как failed без находок; сравнение не сообщает об исправлении.
+
+Повторный офлайн-аудит всех восьми правил по реальному закрытому снимку дал: versioning confirmed_violation (учебный временный бакет без версионирования), read/list/write/delete passed, внешний доступ passed, excess-explicit-permissions insufficient_data (нет baseline), ACL potential_risk. Код 3 соответствует неполной оценке, а не сбою приложения.
+
+## Сопоставление исходному заданию
+
+| Требование | Реализация и доказательства |
+|---|---|
+| Служба проверки облачных хранилищ | Локальный CLI, S3-адаптер, реальные три стадии VK Cloud |
+| Шесть–десять правил | Восемь зарегистрированных правил; матрица выше |
+| Обнаружение общедоступного хранилища | Реальные unsigned read/list, confirmed_violation |
+| Рекомендации | Поля recommendation и verification; проверены для каждой рискованной конфигурации |
+| Обоснование состава проверок | `docs/rules/RULE_CATALOG.md` и карточки правил |
+| Оценка опасности | RiskModel; ненулевые оценки находок, unknown при недостатке данных; порядковая модель, не статистическая вероятность |
+| Обнаружить открытый доступ и подтвердить исправление | Реальный стенд, независимые unsigned-пробы, сравнение отчётов |
+| ИИ-помощник | Не реализован; отдельная итерация 11 |
+
+## Границы вывода
+
+В 24 фиксированных сочетаниях не обнаружено расхождений с ожидаемыми статусами, ложных passed при недоступности данных и пропусков заданных грантов. На реальном read/list-стенде нет пропусков заданного открытого доступа. Это не измерение полноты/точности на произвольных политиках и не процент качества: независимого размеченного корпуса нет.
+
+Не подтверждены реальные публичные write/delete, фактический вход внешних субъектов и глобальная минимальность прав. Condition/Not*, implicit IAM, все объекты и версии остаются ограничениями. Полный регрессионный прогон и окончательная сборка материалов — итерация 10. Артефакты и время — в `docs/ITERATION_09.md`.
