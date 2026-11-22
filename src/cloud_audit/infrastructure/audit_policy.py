@@ -17,24 +17,29 @@ def parse_audit_policy(data: dict) -> AuditPolicy:
     try:
         if not isinstance(data, dict) or set(data) - {
                 'data_sensitivity', 'required_controls', 'allowed_external_accounts',
-                'required_permissions', 'exceptions'}:
+                'required_permissions', 'exceptions', 'trusted_project_ids'}:
             raise ValueError
         sensitivity = data.get('data_sensitivity', 'unknown')
         if sensitivity not in {'low', 'medium', 'high', 'unknown'}:
             raise ValueError
         controls = string_list(data.get('required_controls', ['versioning']))
-        if set(controls) - {'versioning'}:
+        if set(controls) - {'versioning', 'acl_disabled'}:
             raise ValueError
         accounts = string_list(data.get('allowed_external_accounts', []))
+        trusted = string_list(data.get('trusted_project_ids', []))
         for key in ('required_permissions', 'exceptions'):
             if not isinstance(data.get(key, []), list):
                 raise ValueError
         permissions = []
+        subjects = set()
         for item in data.get('required_permissions', []):
             if set(item) != {'subject', 'operations'} or not isinstance(item['subject'], str) or not item['subject'].strip():
                 raise ValueError
             operations = string_list(item['operations'])
-            if not operations or set(operations) - {'read', 'list', 'write', 'delete', 'read_acl', 'read_policy'}:
+            if item['subject'] in subjects:
+                raise ValueError
+            subjects.add(item['subject'])
+            if set(operations) - {'read', 'list', 'write', 'delete', 'read_acl', 'read_policy', 'write_acl'}:
                 raise ValueError
             permissions.append(PermissionRequirement(item['subject'], operations))
         exceptions = []
@@ -51,7 +56,7 @@ def parse_audit_policy(data: dict) -> AuditPolicy:
                 raise ValueError
             seen.add(key)
             exceptions.append(exception)
-        return AuditPolicy(sensitivity, controls, accounts, tuple(permissions), tuple(exceptions))
+        return AuditPolicy(sensitivity, controls, accounts, tuple(permissions), tuple(exceptions), trusted)
     except (ValueError, TypeError, KeyError, AttributeError):
         raise ConfigurationError('Invalid audit policy; check schema and field types') from None
 

@@ -15,7 +15,7 @@ from test_configuration_snapshot import configured_client, failure
 
 
 class AccessCliTests(unittest.TestCase):
-    def test_live_cli_selection_and_probes_roundtrip_all_five_rules(self):
+    def test_live_cli_selection_and_probes_roundtrip_all_eight_rules(self):
         signed, anon = configured_client(), Mock()
         signed.get_bucket_policy.side_effect = failure('NoSuchBucketPolicy')
         signed.get_object_acl.return_value = {'Owner': {'ID': 'owner'}, 'Grants': []}
@@ -30,9 +30,9 @@ class AccessCliTests(unittest.TestCase):
                                     '--objects', 'sample.txt', '--probe-anonymous']), \
                  patch.object(S3Provider, 'from_settings', return_value=provider), \
                  contextlib.redirect_stdout(output):
-                self.assertEqual(main(), 0)
+                self.assertEqual(main(), 3)
             report = json.loads(output.getvalue())
-            self.assertEqual(len(report['results']), 5)
+            self.assertEqual(len(report['results']), 8)
             self.assertEqual(report['object_keys'], ['sample.txt'])
             self.assertEqual(JsonReportRepository(Path(directory) / 'data').get(report['id']).results[1].status,
                              'confirmed_violation')

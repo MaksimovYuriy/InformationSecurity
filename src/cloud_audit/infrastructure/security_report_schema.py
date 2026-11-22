@@ -92,6 +92,15 @@ def decode_security_report(data: dict) -> SecurityReport:
                     positive = True
             if (finding.status == 'confirmed_violation') != positive:
                 raise ValueError
+        if finding.rule_id == 'bucket-acl-disabled' and finding.status not in {'insufficient_data', 'not_applicable'}:
+            values = [proof.value for proof in evidence if proof.field == 'ownership_controls.object_ownership'
+                      and proof.source == 'get_bucket_ownership_controls' and proof.observation_status == 'available']
+            if len(values) != 1 or values[0] not in {'BucketOwnerEnforced', 'BucketOwnerPreferred', 'ObjectWriter'}:
+                raise ValueError
+            expected = ('passed' if values[0] == 'BucketOwnerEnforced' else 'confirmed_violation'
+                        if 'acl_disabled' in policy.required_controls else 'potential_risk')
+            if finding.status != expected:
+                raise ValueError
         findings.append(finding)
     if not findings:
         raise ValueError

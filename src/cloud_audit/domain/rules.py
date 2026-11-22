@@ -31,6 +31,7 @@ class AuditPolicy:
     allowed_external_accounts: tuple[str, ...] = ()
     required_permissions: tuple[PermissionRequirement, ...] = ()
     exceptions: tuple[RuleException, ...] = ()
+    trusted_project_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

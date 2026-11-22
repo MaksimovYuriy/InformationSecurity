@@ -1,6 +1,6 @@
 # Cloud Storage Audit
 
-Служба проверки безопасности облачного хранилища. Реализованы окружение, демонстрационный сценарий, подключение к VK Cloud, список бакетов и сбор их конфигурации. Реализованы движок правил, проверка версионирования и четыре проверки анонимных операций; демонстрационный аудит отдельно помечается `simulated`. Анализ политик ограничен поддерживаемой частью модели, охват объектов задаётся явно.
+Служба проверки безопасности облачного хранилища. Реализованы окружение, демонстрационный сценарий, подключение к VK Cloud, список бакетов и сбор их конфигурации. Реализован движок с восемью правилами: версионирование, четыре анонимные операции и три проверки управления доступом; демонстрационный аудит отдельно помечается `simulated`. Анализ политик ограничен поддерживаемой частью модели, охват объектов задаётся явно.
 
 ## Локальный запуск
 
@@ -121,7 +121,7 @@ PYTHONPATH=src .venv/bin/python -m cloud_audit report REPORT_ID --format text
 
 ## Анонимный доступ — итерация 6
 
-По умолчанию зарегистрированы пять правил: версионирование и `anonymous-read`, `anonymous-list`, `anonymous-write`, `anonymous-delete`. Для конфигурационного анализа объектных операций выберите до 20 искусственных файлов через --objects; без выбора объектные результаты могут быть insufficient_data.
+В итерации 6 были зарегистрированы первые пять правил: версионирование и `anonymous-read`, `anonymous-list`, `anonymous-write`, `anonymous-delete`. Для конфигурационного анализа объектных операций выберите до 20 искусственных файлов через --objects; без выбора объектные результаты могут быть insufficient_data.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects test.txt --probe-anonymous --rules anonymous-read anonymous-list
@@ -138,3 +138,21 @@ PYTHONPATH=src .venv/bin/python scripts/verify_public_access.py --run-training-f
 ```
 
 Сценарий ненадолго публикует один искусственный файл и список нового бакета, затем закрывает и удаляет стенд. Публичную запись не включает. [Протокол](docs/ITERATION_06.md), [проверка корректности](docs/CORRECTNESS_REVIEW_06.md), [правила](docs/rules/ANONYMOUS_ACCESS.md).
+
+## Восемь правил — итерация 7
+
+Окончательный набор описан в [каталоге](docs/rules/RULE_CATALOG.md). Дополнительно доступны `unapproved-external-access`, `excess-explicit-permissions`, `bucket-acl-disabled`.
+
+Настройте контекст в своём JSON-файле по `audit-policy.example.json`:
+
+- `trusted_project_ids`: собственные/доверенные проекты VK Cloud, не идентификаторы ключей;
+- `allowed_external_accounts`: разрешённые внешние проекты либо точные субъекты;
+- `required_permissions`: по одной записи subject/operations на субъект. Допустимы read/list/write/delete/read_acl/write_acl/read_policy. Пустой operations означает «никаких прав не требуется»; пустой required_permissions — отсутствие модели.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects test.txt --policy audit-policy.example.json --rules unapproved-external-access excess-explicit-permissions bucket-acl-disabled
+```
+
+Пример с пустыми списками не заменяет фактическую baseline: без неё проверка избыточности возвращает insufficient_data. Анализируются только явные гранты в выбранном охвате, не полный IAM проекта. При рекомендуемом отключении ACL сначала проверьте совместимость загрузчиков; BucketOwnerEnforced не блокирует публичную политику сам по себе. Требование acl_disabled можно добавить в required_controls, если оно принято для проекта.
+
+[Карточки новых правил](docs/rules/GOVERNANCE_ACCESS.md), [протокол итерации 7](docs/ITERATION_07.md). По согласованному режиму проверок в этой итерации запускались только новые тесты и затронутые прежние сценарии.
