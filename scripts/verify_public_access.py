@@ -4,24 +4,26 @@ import json
 import os
 from pathlib import Path
 from uuid import uuid4
+from time import sleep
 
 from botocore.exceptions import ClientError, BotoCoreError
 from botocore.parsers import ResponseParserError
-from cloud_audit.application.rule_registry import default_rules
-from cloud_audit.application.rules import RuleEngine
-from cloud_audit.application.security_audit import SecurityAuditService
-from cloud_audit.application.snapshot import SnapshotService
-from cloud_audit.domain.rules import AuditPolicy
-from cloud_audit.domain.snapshot import CollectionOptions
-from cloud_audit.infrastructure.configuration import load_s3_settings
-from cloud_audit.infrastructure.s3 import S3Provider
-from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
-from cloud_audit.infrastructure.reports import JsonReportRepository
-from cloud_audit.infrastructure.history import SqliteReportRepository
-from cloud_audit.infrastructure.storage import LocalStateStorage
+from cloud_audit.rules.registry import default_rules
+from cloud_audit.rules.engine import RuleEngine
+from cloud_audit.services.audit import SecurityAuditService
+from cloud_audit.services.snapshots import SnapshotService
+from cloud_audit.models.security import AuditPolicy
+from cloud_audit.models.snapshot import CollectionOptions
+from cloud_audit.configuration.environment import load_s3_settings
+from cloud_audit.providers.s3 import S3Provider
+from cloud_audit.storage.snapshots import JsonSnapshotRepository
+from cloud_audit.storage.json_reports import JsonReportRepository
+from cloud_audit.storage.sqlite import SqliteReportRepository
+from cloud_audit.storage.state import LocalStateStorage
 
 
 def main():
+    """Создаёт только новый искусственный стенд, проверяет private/public/private и всегда пытается удалить созданные ресурсы; возвращает 0 либо 2."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-training-fixture', action='store_true', required=True,
                         help='Create a temporary bucket and briefly publish only synthetic read/list data')
@@ -39,6 +41,7 @@ def main():
     successful = False
     stages = []
     def run_stage(name):
+        """Собирает свежий снимок с unsigned read/list, выполняет четыре анонимных правила и сохраняет безопасную сводку стадии."""
         data = SnapshotService(provider, snapshots).collect(bucket, CollectionOptions((key,), True))
         report = service.audit(data, AuditPolicy(), ('anonymous-read', 'anonymous-list', 'anonymous-write', 'anonymous-delete'))
         states = {row.rule_id: row.status for row in report.results}
@@ -49,13 +52,26 @@ def main():
         stages.append(result)
         print(json.dumps(result), flush=True)
         return states, outcomes
+    def verify_stage(name, opened=False):
+        """Собирает до пяти свежих наблюдений с паузой секунду; сохраняет каждую попытку и не подменяет ожидаемое состояние фактическим."""
+        for attempt in range(5):
+            states, probes = run_stage(name)
+            expected = {
+                'anonymous-read': 'confirmed_violation' if opened else 'passed',
+                'anonymous-list': 'confirmed_violation' if opened else 'passed',
+                'anonymous-write': 'passed', 'anonymous-delete': 'passed',
+            }
+            if states == expected and probes and all(value == ('allowed' if opened else 'denied') for value in probes.values()):
+                return
+            if attempt < 4:
+                sleep(1)
+        raise ValueError('Fixture stage did not reach the expected state within five attempts')
+
     try:
         client.create_bucket(Bucket=bucket, ACL='private')
         owned = True
         client.put_object(Bucket=bucket, Key=key, Body=b'cloud-audit synthetic fixture only\n', ACL='private')
-        closed, probes = run_stage('closed_before')
-        if any(value != 'passed' for value in closed.values()) or any(value != 'denied' for value in probes.values()):
-            raise ValueError('Closed baseline did not match expectations')
+        verify_stage('closed_before')
         arn = f'arn:aws:s3:::{bucket}'
         policy = {'Version': '2012-10-17', 'Statement': [
             {'Sid': 'SyntheticReadOnly', 'Effect': 'Allow', 'Principal': '*',
@@ -63,14 +79,9 @@ def main():
             {'Sid': 'SyntheticListOnly', 'Effect': 'Allow', 'Principal': '*',
              'Action': 's3:ListBucket', 'Resource': arn}]}
         client.put_bucket_policy(Bucket=bucket, Policy=json.dumps(policy))
-        opened, probes = run_stage('public_read_list')
-        if (opened['anonymous-read'] != 'confirmed_violation' or opened['anonymous-list'] != 'confirmed_violation'
-                or any(value != 'allowed' for value in probes.values())):
-            raise ValueError('Public fixture did not match expectations')
+        verify_stage('public_read_list', opened=True)
         client.delete_bucket_policy(Bucket=bucket)
-        closed, probes = run_stage('closed_after')
-        if any(value != 'passed' for value in closed.values()) or any(value != 'denied' for value in probes.values()):
-            raise ValueError('Closure did not match expectations')
+        verify_stage('closed_after')
         successful = True
     except (ClientError, BotoCoreError, ResponseParserError, ValueError, OSError):
         print('Fixture verification failed; raw cloud details withheld', flush=True)
@@ -95,7 +106,7 @@ def main():
                 except (ResponseParserError, BotoCoreError, OSError):
                     cleanup_ok = False
         summary = {'success': successful, 'cleanup_ok': cleanup_ok, 'fixture_bucket': bucket,
-                   'stage_count': len(stages)}
+                   'stage_count': len({item['stage'] for item in stages}), 'attempt_count': len(stages)}
         # Persist only synthetic fixture identifiers and summaries, never credentials or private contents.
         summary_path = state / 'data' / f'fixture-{uuid4().hex}.json'
         fd = os.open(summary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

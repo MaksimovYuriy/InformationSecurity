@@ -5,9 +5,11 @@ import sys
 import tempfile
 import unittest
 
-from cloud_audit.infrastructure.configuration import ConfigurationError, load_settings
-from cloud_audit.application.environment import EnvironmentService
-from cloud_audit.infrastructure.storage import LocalStateStorage
+from cloud_audit.errors import ConfigurationError
+
+from cloud_audit.configuration.environment import load_settings
+from cloud_audit.services.environment import EnvironmentService
+from cloud_audit.storage.state import LocalStateStorage
 
 
 class BootstrapTests(unittest.TestCase):

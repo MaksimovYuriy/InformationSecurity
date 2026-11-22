@@ -2,9 +2,11 @@ import unittest
 from unittest.mock import Mock
 
 from botocore.exceptions import ClientError, EndpointConnectionError
-from cloud_audit.application.audit import AuditError, AuditService
-from cloud_audit.infrastructure.configuration import ConfigurationError, load_s3_settings
-from cloud_audit.infrastructure.s3 import S3Provider
+from cloud_audit.errors import AuditError
+from cloud_audit.services.profiles import ProfileService
+from cloud_audit.errors import ConfigurationError
+from cloud_audit.configuration.environment import load_s3_settings
+from cloud_audit.providers.s3 import S3Provider
 
 
 class S3ProviderTests(unittest.TestCase):
@@ -27,7 +29,7 @@ class S3ProviderTests(unittest.TestCase):
         self.assertEqual([r.id for r in provider.resources()], ['first', 'second'])
         self.assertEqual(client.list_buckets.call_args_list[1].kwargs,
                          {'ContinuationToken': 'next'})
-        result = AuditService(provider, Mock()).connection()
+        result = ProfileService(provider, Mock()).connection()
         self.assertEqual(result['mode'], 'vk')
         self.assertEqual(result['status'], 'ok')
         self.assertEqual(set(client.method_calls[i][0] for i in range(3)), {'list_buckets'})
@@ -49,8 +51,8 @@ class S3ProviderTests(unittest.TestCase):
 
     def test_cloud_audit_cannot_produce_a_demo_report(self):
         repository = Mock()
-        with self.assertRaisesRegex(AuditError, 'not implemented'):
-            AuditService(S3Provider(Mock()), repository).audit('bucket', ())
+        with self.assertRaisesRegex(AuditError, 'Simulation requires'):
+            ProfileService(S3Provider(Mock()), repository).simulate('bucket', ())
         repository.save.assert_not_called()
 
     def test_broken_pagination_and_response_fail_instead_of_partial_success(self):

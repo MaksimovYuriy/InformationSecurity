@@ -7,12 +7,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from cloud_audit.cli import main
-from cloud_audit.infrastructure.s3 import S3Provider
-from cloud_audit.infrastructure.anonymous import AnonymousProber
-from cloud_audit.infrastructure.reports import JsonReportRepository
-from cloud_audit.infrastructure.history import SqliteReportRepository
+from cloud_audit.providers.s3 import S3Provider
+from cloud_audit.providers.anonymous import AnonymousProber
+from cloud_audit.storage.json_reports import JsonReportRepository
+from cloud_audit.storage.sqlite import SqliteReportRepository
 from pathlib import Path
-from test_configuration_snapshot import configured_client, failure
+from audit_fixtures import configured_client, failure
 
 
 class AccessCliTests(unittest.TestCase):
@@ -54,13 +54,13 @@ class AccessCliTests(unittest.TestCase):
 class AccessReportIntegrityTests(unittest.TestCase):
     def test_confirmed_access_requires_a_positive_unsigned_request_in_saved_evidence(self):
         from dataclasses import replace
-        from cloud_audit.application.audit import AuditError
-        from cloud_audit.application.rules import RuleEngine
-        from cloud_audit.application.security_audit import SecurityAuditService
-        from cloud_audit.domain.public_access import PublicAccessRule
-        from cloud_audit.domain.rules import AuditPolicy
-        from cloud_audit.domain.snapshot import ConfigurationObservation
-        from test_public_access import config
+        from cloud_audit.errors import AuditError
+        from cloud_audit.rules.engine import RuleEngine
+        from cloud_audit.services.audit import SecurityAuditService
+        from cloud_audit.rules.public_access import PublicAccessRule
+        from cloud_audit.models.security import AuditPolicy
+        from cloud_audit.models.snapshot import ConfigurationObservation
+        from audit_fixtures import config
         data = config()
         proof = ConfigurationObservation('anonymous_read:sample.txt', 'anonymous_get_object', 'available', {
             'outcome': 'allowed', 'http_status': 206, 'object_key': 'sample.txt', 'checked_at': data.collected_at})

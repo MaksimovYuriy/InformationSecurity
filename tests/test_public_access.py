@@ -1,39 +1,19 @@
+from audit_fixtures import config, grant, statement, ALL
 from dataclasses import replace
 import unittest
 
-from cloud_audit.application.rules import RuleEngine
-from cloud_audit.domain.public_access import PublicAccessRule
-from cloud_audit.domain.rules import AuditPolicy
-from cloud_audit.domain.snapshot import ConfigurationObservation
-from test_rule_engine import snapshot
+from cloud_audit.rules.engine import RuleEngine
+from cloud_audit.rules.public_access import PublicAccessRule
+from cloud_audit.models.security import AuditPolicy
+from cloud_audit.models.snapshot import ConfigurationObservation
 
 
-ALL = 'http://acs.amazonaws.com/groups/global/AllUsers'
 
 
-def config(bucket_grants=(), object_grants=(), statements=None, ownership='BucketOwnerPreferred'):
-    items = [ConfigurationObservation('bucket_acl', 'get_bucket_acl', 'available',
-                {'owner_id': 'owner', 'grants': list(bucket_grants)}),
-             ConfigurationObservation('bucket_policy', 'get_bucket_policy',
-                'absent' if statements is None else 'available',
-                None if statements is None else {'document': {'Statement': statements}},
-                'not_configured' if statements is None else None),
-             ConfigurationObservation('ownership_controls', 'get_bucket_ownership_controls', 'available',
-                {'object_ownership': ownership}),
-             ConfigurationObservation('public_access_block', 'get_public_access_block', 'unsupported', None, 'api_not_supported'),
-             ConfigurationObservation('object_acl:sample.txt', 'get_object_acl', 'available',
-                {'owner_id': 'owner', 'grants': list(object_grants)})]
-    return replace(snapshot(), schema_version=2, scope='bucket_and_selected_objects',
-                   observations=tuple(items), object_keys=('sample.txt',))
 
 
-def grant(permission, principal=ALL):
-    return {'principal_type': 'Group', 'principal': principal, 'permission': permission}
 
 
-def statement(effect='Allow', action='s3:GetObject', **extra):
-    return {'Effect': effect, 'Principal': '*', 'Action': action,
-            'Resource': ['arn:aws:s3:::lab', 'arn:aws:s3:::lab/*'], **extra}
 
 
 def evaluate(data, operation):

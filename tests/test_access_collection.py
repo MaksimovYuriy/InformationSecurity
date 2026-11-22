@@ -2,11 +2,11 @@ from io import BytesIO
 import unittest
 from unittest.mock import Mock
 from botocore.exceptions import ClientError
-from cloud_audit.domain.snapshot import CollectionOptions
-from cloud_audit.domain.audit import Resource
-from cloud_audit.infrastructure.anonymous import AnonymousProber
-from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
-from test_configuration_snapshot import configured_client, failure
+from cloud_audit.models.snapshot import CollectionOptions
+from cloud_audit.models.resources import Resource
+from cloud_audit.providers.anonymous import AnonymousProber
+from cloud_audit.providers.collection import S3ConfigurationCollector
+from audit_fixtures import configured_client, failure
 
 
 class AccessCollectionTests(unittest.TestCase):
@@ -60,7 +60,7 @@ class ProbeSafetyTests(unittest.TestCase):
     def test_factory_is_unsigned_even_when_environment_contains_credentials(self):
         from unittest.mock import patch
         from botocore import UNSIGNED
-        from cloud_audit.infrastructure.configuration import S3Settings
+        from cloud_audit.models.settings import S3Settings
         with patch.dict('os.environ', {'AWS_ACCESS_KEY_ID': 'must-not-send', 'AWS_SECRET_ACCESS_KEY': 'must-not-send'}):
             probe = AnonymousProber.from_settings(S3Settings('https://example.invalid', 'us-east-1', 'fake', 'fake'))
         self.assertEqual(probe._anonymous.meta.config.signature_version, UNSIGNED)
@@ -101,14 +101,14 @@ class ProbeSafetyTests(unittest.TestCase):
     def test_extended_snapshot_and_report_roundtrip_keep_scope_and_probe_evidence(self):
         import tempfile
         from pathlib import Path
-        from cloud_audit.application.snapshot import SnapshotService
-        from cloud_audit.application.security_audit import SecurityAuditService
-        from cloud_audit.application.rules import RuleEngine
-        from cloud_audit.domain.public_access import PublicAccessRule
-        from cloud_audit.domain.rules import AuditPolicy
-        from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
-        from cloud_audit.infrastructure.reports import JsonReportRepository
-        from cloud_audit.infrastructure.s3 import S3Provider
+        from cloud_audit.services.snapshots import SnapshotService
+        from cloud_audit.services.audit import SecurityAuditService
+        from cloud_audit.rules.engine import RuleEngine
+        from cloud_audit.rules.public_access import PublicAccessRule
+        from cloud_audit.models.security import AuditPolicy
+        from cloud_audit.storage.snapshots import JsonSnapshotRepository
+        from cloud_audit.storage.json_reports import JsonReportRepository
+        from cloud_audit.providers.s3 import S3Provider
         client = configured_client()
         client.get_object_acl.return_value = {'Owner': {'ID': 'owner'}, 'Grants': []}
         anon = Mock()
@@ -153,7 +153,7 @@ class CleanupFailureTests(unittest.TestCase):
 class UnsignedTransportTests(unittest.TestCase):
     def test_serialized_sdk_requests_have_no_authorization_or_credential_query(self):
         from botocore.awsrequest import AWSResponse
-        from cloud_audit.infrastructure.configuration import S3Settings
+        from cloud_audit.models.settings import S3Settings
         prober = AnonymousProber.from_settings(S3Settings('https://example.invalid', 'us-east-1', 'secret-id', 'secret-key'))
         requests = []
         class Raw(BytesIO):

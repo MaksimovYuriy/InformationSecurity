@@ -1,21 +1,15 @@
+from audit_fixtures import snapshot
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import unittest
 
-from cloud_audit.application.audit import AuditError
-from cloud_audit.application.rules import RuleEngine
-from cloud_audit.domain.audit import Resource
-from cloud_audit.domain.rules import AuditPolicy, RuleException
-from cloud_audit.domain.snapshot import ConfigurationObservation, ConfigurationSnapshot, LIMITATIONS
-from cloud_audit.domain.versioning import VersioningRule
+from cloud_audit.errors import AuditError
+from cloud_audit.rules.engine import RuleEngine
+from cloud_audit.models.security import AuditPolicy, RuleException
+from cloud_audit.models.snapshot import ConfigurationObservation
+from cloud_audit.rules.versioning import VersioningRule
 
 
-def snapshot(value='Disabled', status='available'):
-    return ConfigurationSnapshot('a' * 32, 1, 'vk', Resource('lab', 'lab'),
-        datetime.now(timezone.utc).isoformat(), 'bucket_configuration_only', LIMITATIONS,
-        'partial', (ConfigurationObservation('versioning', 'get_bucket_versioning', status,
-                     {'status': value, 'mfa_delete': None} if status == 'available' else None,
-                     None if status == 'available' else 'api_not_supported'),))
 
 
 class RuleEngineTests(unittest.TestCase):
@@ -87,7 +81,8 @@ class RuleEngineTests(unittest.TestCase):
 
 class ExtensibilityTests(unittest.TestCase):
     def test_second_rule_can_use_known_absence_without_changing_engine(self):
-        from cloud_audit.domain.rules import Finding, RiskModel, Evidence
+        from cloud_audit.rules.risk import RiskModel
+        from cloud_audit.models.security import Finding, Evidence
         class PolicyAbsenceRule:
             id = 'test-policy-absence'
             required_data = ('bucket_policy',)

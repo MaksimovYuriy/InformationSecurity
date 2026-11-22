@@ -1,3 +1,4 @@
+from audit_fixtures import failure, configured_client
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
 import json
@@ -6,39 +7,17 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from botocore.exceptions import ClientError, EndpointConnectionError
+from botocore.exceptions import EndpointConnectionError
 
-from cloud_audit.application.audit import AuditError
-from cloud_audit.application.snapshot import SnapshotService
-from cloud_audit.domain.audit import Resource
-from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
-from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
-
-
-def failure(code):
-    return ClientError({'Error': {'Code': code, 'Message': 'never-print-secret'}}, 'GetConfig')
+from cloud_audit.errors import AuditError
+from cloud_audit.services.snapshots import SnapshotService
+from cloud_audit.models.resources import Resource
+from cloud_audit.providers.collection import S3ConfigurationCollector
+from cloud_audit.storage.snapshots import JsonSnapshotRepository
 
 
-def configured_client():
-    client = Mock()
-    client.get_bucket_acl.return_value = {
-        'Owner': {'ID': 'owner'},
-        'Grants': [{'Grantee': {'Type': 'Group', 'URI': 'http://acs.amazonaws.com/groups/global/AllUsers'},
-                    'Permission': 'READ'}], 'ResponseMetadata': {'Secret': 'never-print-secret'}}
-    client.get_bucket_policy.return_value = {'Policy': json.dumps({
-        'Version': '2012-10-17', 'Statement': {'Effect': 'Deny', 'Principal': '*',
-            'Action': 's3:DeleteObject', 'Resource': 'arn:aws:s3:::lab/*',
-            'Condition': {'UnknownCondition': {'x': 'y'}}}})}
-    client.get_public_access_block.return_value = {'PublicAccessBlockConfiguration': {
-        'BlockPublicAcls': True, 'IgnorePublicAcls': False,
-        'BlockPublicPolicy': True, 'RestrictPublicBuckets': False}}
-    client.get_bucket_ownership_controls.return_value = {
-        'OwnershipControls': {'Rules': [{'ObjectOwnership': 'BucketOwnerPreferred'}]}}
-    client.get_bucket_versioning.return_value = {}
-    client.get_bucket_logging.return_value = {}
-    client.get_bucket_encryption.side_effect = failure('ServerSideEncryptionConfigurationNotFoundError')
-    client.get_object_lock_configuration.side_effect = failure('ObjectLockConfigurationNotFoundError')
-    return client
+
+
 
 
 class CollectionTests(unittest.TestCase):
@@ -149,8 +128,8 @@ class SnapshotCliTests(unittest.TestCase):
         from unittest.mock import patch
         from botocore.stub import Stubber
         from cloud_audit.cli import main
-        from cloud_audit.infrastructure.configuration import load_s3_settings
-        from cloud_audit.infrastructure.s3 import S3Provider
+        from cloud_audit.configuration.environment import load_s3_settings
+        from cloud_audit.providers.s3 import S3Provider
 
         settings = load_s3_settings({'AWS_ACCESS_KEY_ID': 'fake-id', 'AWS_SECRET_ACCESS_KEY': 'fake-secret'})
         provider = S3Provider.from_settings(settings)
@@ -197,7 +176,7 @@ class ConfigurationEvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             repo = JsonSnapshotRepository(Path(directory))
             snapshot = SnapshotService(S3ConfigurationCollector(configured_client()), repo).collect('lab')
-            with patch('cloud_audit.infrastructure.snapshots.os.replace', side_effect=OSError):
+            with patch('cloud_audit.storage.snapshots.os.replace', side_effect=OSError):
                 with self.assertRaises(OSError):
                     repo.save(snapshot)
             self.assertEqual(repo.get(snapshot.id), snapshot)

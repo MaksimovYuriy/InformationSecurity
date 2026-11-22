@@ -1,3 +1,7 @@
+"""
+Консольный интерфейс и сборка зависимостей: выбирает сценарий, создаёт адаптеры, выводит результат и
+код завершения.
+"""
 import argparse
 from dataclasses import asdict
 import json
@@ -6,27 +10,33 @@ import os
 from pathlib import Path
 
 from cloud_audit import __version__
-from cloud_audit.application.audit import AuditError, AuditService
-from cloud_audit.application.environment import EnvironmentService
-from cloud_audit.application.snapshot import SnapshotService
-from cloud_audit.application.rules import RuleEngine
-from cloud_audit.application.security_audit import SecurityAuditService
-from cloud_audit.application.rule_registry import default_rules
-from cloud_audit.domain.snapshot import CollectionOptions
-from cloud_audit.domain.history import HistoryQuery
-from cloud_audit.domain.rules import FINDING_STATUSES
-from cloud_audit.application.history import AuditHistoryService
-from cloud_audit.infrastructure.audit_policy import load_audit_policy
-from cloud_audit.infrastructure.configuration import ConfigurationError, load_settings, load_s3_settings
-from cloud_audit.infrastructure.demo import DemoProvider
-from cloud_audit.infrastructure.reports import JsonReportRepository
-from cloud_audit.infrastructure.storage import LocalStateStorage
-from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
-from cloud_audit.infrastructure.history import SqliteReportRepository
-from cloud_audit.infrastructure.formatting import report_view, render_markdown, write_document
+from cloud_audit.errors import AuditError
+from cloud_audit.services.profiles import ProfileService
+from cloud_audit.services.environment import EnvironmentService
+from cloud_audit.services.snapshots import SnapshotService
+from cloud_audit.rules.engine import RuleEngine
+from cloud_audit.services.audit import SecurityAuditService
+from cloud_audit.rules.registry import default_rules
+from cloud_audit.models.snapshot import CollectionOptions
+from cloud_audit.models.history import HistoryQuery
+from cloud_audit.models.security import FINDING_STATUSES
+from cloud_audit.services.history import AuditHistoryService
+from cloud_audit.configuration.policy import load_audit_policy
+from cloud_audit.errors import ConfigurationError
+from cloud_audit.configuration.environment import load_settings, load_s3_settings
+from cloud_audit.providers.demo import DemoProvider
+from cloud_audit.storage.json_reports import JsonReportRepository
+from cloud_audit.storage.state import LocalStateStorage
+from cloud_audit.storage.snapshots import JsonSnapshotRepository
+from cloud_audit.storage.sqlite import SqliteReportRepository
+from cloud_audit.reports.formatting import report_view, render_markdown, write_document
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Описывает команды, взаимоисключающий выбор ресурса/снимка, форматы, фильтры и флаги проб;
+    --help/--version не требуют состояния.
+    """
     parser = argparse.ArgumentParser(description='Cloud storage audit')
     parser.add_argument('--version', action='version', version=__version__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -73,6 +83,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """
+    Разбирает аргументы CLI, загружает настройки, собирает реализации интерфейсов, выполняет
+    выбранную команду и возвращает 0/1/2/3; секреты не выводит.
+    """
     parser = build_parser()
     args = parser.parse_args()
     try:
@@ -91,11 +105,11 @@ def main() -> int:
         provider = DemoProvider()
         if (args.command in ('connection', 'resources', 'audit', 'collect') and getattr(args, 'profile', 'demo') == 'vk'
                 and not (args.command == 'audit' and args.snapshot)):
-            from cloud_audit.infrastructure.s3 import S3Provider
+            from cloud_audit.providers.s3 import S3Provider
             provider = S3Provider.from_settings(load_s3_settings(os.environ))
         reports = SqliteReportRepository(settings.state_dir / 'data' / 'audit.sqlite3',
                                         legacy=JsonReportRepository(settings.state_dir / 'data'))
-        service = AuditService(provider, reports)
+        service = ProfileService(provider, reports)
         history = AuditHistoryService(reports)
         snapshots = JsonSnapshotRepository(settings.state_dir / 'data' / 'snapshots')
         if args.command == 'check':
@@ -108,7 +122,7 @@ def main() -> int:
             if args.profile == 'demo':
                 if args.snapshot or args.policy:
                     raise AuditError('Snapshot and policy options require --profile vk')
-                output = asdict(service.audit(args.resource, tuple(args.rules)))
+                output = asdict(service.simulate(args.resource, tuple(args.rules)))
             else:
                 engine = RuleEngine(default_rules())
                 engine.select(tuple(args.rules))

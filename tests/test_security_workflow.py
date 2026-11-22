@@ -1,4 +1,3 @@
-from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -8,17 +7,17 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from cloud_audit.application.rules import RuleEngine
-from cloud_audit.application.security_audit import SecurityAuditService
-from cloud_audit.application.snapshot import SnapshotService
-from cloud_audit.domain.rules import AuditPolicy
-from cloud_audit.domain.versioning import VersioningRule
-from cloud_audit.infrastructure.audit_policy import load_audit_policy
-from cloud_audit.infrastructure.configuration import ConfigurationError
-from cloud_audit.infrastructure.reports import JsonReportRepository
-from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
-from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
-from test_configuration_snapshot import configured_client
+from cloud_audit.rules.engine import RuleEngine
+from cloud_audit.services.audit import SecurityAuditService
+from cloud_audit.services.snapshots import SnapshotService
+from cloud_audit.models.security import AuditPolicy
+from cloud_audit.rules.versioning import VersioningRule
+from cloud_audit.configuration.policy import load_audit_policy
+from cloud_audit.errors import ConfigurationError
+from cloud_audit.storage.json_reports import JsonReportRepository
+from cloud_audit.providers.collection import S3ConfigurationCollector
+from cloud_audit.storage.snapshots import JsonSnapshotRepository
+from audit_fixtures import configured_client
 
 
 class PolicyTests(unittest.TestCase):
@@ -74,14 +73,14 @@ class SecurityWorkflowTests(unittest.TestCase):
             raw = json.loads((root / 'data' / (report.id + '.json')).read_text())
             raw['results'][0]['status'] = 'invented'
             (root / 'data' / (report.id + '.json')).write_text(json.dumps(raw))
-            from cloud_audit.application.audit import AuditError
+            from cloud_audit.errors import AuditError
             with self.assertRaises(AuditError):
                 reports.get(report.id)
 
     def test_insufficient_required_evidence_returns_incomplete_evaluation(self):
         collector = S3ConfigurationCollector(configured_client())
         client = configured_client()
-        from test_configuration_snapshot import failure
+        from audit_fixtures import failure
         client.get_bucket_versioning.side_effect = failure('AccessDenied')
         snapshot = SnapshotService(S3ConfigurationCollector(client), Mock()).collect('lab')
         report = SecurityAuditService(RuleEngine((VersioningRule(),)), Mock()).audit(snapshot, AuditPolicy())
@@ -91,14 +90,14 @@ class SecurityWorkflowTests(unittest.TestCase):
 
 class StrictPolicyTests(unittest.TestCase):
     def test_configuration_arrays_must_not_accept_objects_or_null(self):
-        from cloud_audit.infrastructure.audit_policy import parse_audit_policy
+        from cloud_audit.configuration.policy import parse_audit_policy
         for key in ('required_permissions', 'exceptions'):
             for value in ({}, None, 'bad'):
                 with self.subTest(key=key, value=value), self.assertRaises(ConfigurationError):
                     parse_audit_policy({key: value})
 
     def test_saved_finding_requires_evidence_and_consistent_risk(self):
-        from cloud_audit.application.audit import AuditError
+        from cloud_audit.errors import AuditError
         with tempfile.TemporaryDirectory() as directory:
             snapshots = JsonSnapshotRepository(Path(directory) / 'snapshots')
             snapshot = SnapshotService(S3ConfigurationCollector(configured_client()), snapshots).collect('lab')
@@ -116,7 +115,7 @@ class StrictPolicyTests(unittest.TestCase):
 
 class PolicyCliTests(unittest.TestCase):
     def test_exception_and_missing_evidence_are_preserved_through_cli_and_saved_report(self):
-        from test_configuration_snapshot import failure
+        from audit_fixtures import failure
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             repo = JsonSnapshotRepository(root / 'data' / 'snapshots')
