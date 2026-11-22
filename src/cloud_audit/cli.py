@@ -79,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == 'compare':
             command.add_argument('before_id')
             command.add_argument('after_id')
+    from cloud_audit.scan_cli import add_scan_commands
+    add_scan_commands(commands)
     return parser
 
 
@@ -112,7 +114,10 @@ def main() -> int:
         service = ProfileService(provider, reports)
         history = AuditHistoryService(reports)
         snapshots = JsonSnapshotRepository(settings.state_dir / 'data' / 'snapshots')
-        if args.command == 'check':
+        if args.command in ('scan', 'scan-report'):
+            from cloud_audit.scan_cli import execute_scan
+            output = execute_scan(args, settings, reports, snapshots)
+        elif args.command == 'check':
             output = {'version': __version__, **asdict(environment)}
         elif args.command == 'connection':
             output = service.connection()
@@ -166,7 +171,9 @@ def main() -> int:
     elif getattr(args, 'format', 'json') == 'markdown':
         print(render_markdown(output), end='')
     elif getattr(args, 'format', 'json') == 'text':
-        if args.command in ('history', 'compare', 'import-reports'):
+        if args.command in ('scan', 'scan-report'):
+            print('STAGED STORAGE SCAN — see evidence and scope')
+        elif args.command in ('history', 'compare', 'import-reports'):
             print('LOCAL AUDIT HISTORY')
         elif args.command in ('collect', 'snapshot'):
             print('VK CLOUD — bucket configuration only; security not assessed')
@@ -179,6 +186,8 @@ def main() -> int:
         print(json.dumps(output, indent=2, ensure_ascii=False))
     else:
         print(json.dumps(output, ensure_ascii=False))
+    if args.command in ('scan', 'scan-report'):
+        return 3 if output['incomplete'] else 0
     if 'evaluation_status' in output:
         return 3 if output['evaluation_status'] == 'incomplete' else 0
     if args.command == 'compare':

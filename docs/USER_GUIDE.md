@@ -44,6 +44,10 @@ Shell исполняет содержимое файла; приложение �
 
 Severity: none/unknown/low/medium/high/critical. Status: confirmed_violation/potential_risk/passed/insufficient_data/not_applicable/simulated. Run status: complete/incomplete/failed/demo. History по умолчанию показывает vk, limit=50, максимум 500. Report-фильтр не меняет общую оценку; пустое представление не доказывает отсутствие находок в полном отчёте.
 
+## Ступенчатый scan
+
+Для нескольких бакетов и режима без ключей используйте [STAGED_SCAN.md](STAGED_SCAN.md): scan --buckets/--targets/--all-buckets, scan-report, отдельные разрешения мутаций. Следующий раздел описывает сохранённый одиночный audit.
+
 ## Реальный аудит
 
 ```bash

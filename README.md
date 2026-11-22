@@ -1,6 +1,6 @@
 # Cloud Storage Audit
 
-Локальное приложение проверки безопасности VK Cloud Object Storage (S3). Собирает настройки выбранного бакета, выполняет восемь правил, оценивает риск, выдаёт рекомендации и сохраняет отчёты. Поддерживает ограниченные анонимные пробы, историю, сравнение запусков и JSON/Markdown-экспорт. ИИ-помощник запланирован отдельно и пока не реализован.
+Локальное приложение проверки безопасности VK Cloud Object Storage (S3). Собирает настройки выбранного бакета, выполняет восемь правил, оценивает риск, выдаёт рекомендации и сохраняет отчёты. Поддерживает ограниченные анонимные пробы, историю, сравнение запусков и JSON/Markdown-экспорт. Добавлен ступенчатый scan нескольких бакетов: внешний этап без подписи и внутренний при наличии ключей. ИИ-помощник запланирован на итерацию 12 и пока не реализован.
 
 ## Быстрый запуск
 
@@ -16,6 +16,8 @@ PYTHONPATH=src .venv/bin/python -m cloud_audit --help
 Для живого S3 нужны переменные окружения из `.env.example`. Имя бакета передаётся через `--resource`; настройки подключения общие для нескольких бакетов. Приложение не загружает `.env` автоматически. Порядок безопасной настройки — в [руководстве](docs/USER_GUIDE.md).
 
 ```bash
+PYTHONPATH=src .venv/bin/python -m cloud_audit scan --targets scan-targets.example.json
+PYTHONPATH=src .venv/bin/python -m cloud_audit scan --all-buckets
 PYTHONPATH=src .venv/bin/python -m cloud_audit resources --profile vk
 PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous
 PYTHONPATH=src .venv/bin/python -m cloud_audit report REPORT_ID --format markdown --output report.md
@@ -59,6 +61,7 @@ src/cloud_audit/
 - [Архитектура: что, как и почему](docs/ARCHITECTURE.md)
 - [Полный справочник исходного кода](docs/CODE_REFERENCE.md)
 - [Модели, конфигурация и форматы хранения](docs/DATA_CONTRACTS.md)
+- [Ступенчатая проверка нескольких бакетов](docs/STAGED_SCAN.md)
 - [Все правила и порядок сканирования](docs/SCANNING.md)
 - [Обоснование выбора правил](docs/rules/RULE_CATALOG.md)
 - [Установка, команды и демонстрация](docs/USER_GUIDE.md)
@@ -73,6 +76,6 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python scripts/build_code_reference.py --check
 ```
 
-Для приёмочных CLI-сценариев отдельно: `-p 'test_acceptance.py'`. Тесты автоматически не обращаются к реальному облаку. Для явно включаемого временного стенда используется `scripts/verify_public_access.py --run-training-fixture`; условия и уборка описаны в руководстве.
+Для новых ступенчатых проверок: `-p 'test_staged_*.py'`. Для приёмочных CLI-сценариев отдельно: `-p 'test_acceptance.py'`. Тесты автоматически не обращаются к реальному облаку. Для явно включаемого временного стенда используется `scripts/verify_public_access.py --run-training-fixture`; условия и уборка описаны в руководстве.
 
 Успех команды (код 0) не означает отсутствие находок. Код 3 обозначает частичность/недостаток данных либо неподтверждённое сравнение. Condition/Not*, полный IAM, все объекты/версии и фактический вход внешних субъектов не анализируются полностью; ограничения сохраняются в отчёте.

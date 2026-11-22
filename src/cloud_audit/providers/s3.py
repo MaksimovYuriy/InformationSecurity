@@ -110,3 +110,8 @@ class S3Provider:
             if options.allow_write_probes:
                 result += self._anonymous_prober.mutations(resource.id, enabled=True)
         return result
+
+    def discover_objects(self, bucket, limit):
+        """Перечисляет ограниченные ключи подписанным клиентом; не читает содержимое объектов."""
+        from cloud_audit.providers.discovery import ObjectEnumerator
+        return ObjectEnumerator(self._client, 'authenticated').list(bucket, limit)[0]

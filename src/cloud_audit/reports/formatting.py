@@ -48,6 +48,9 @@ def render_markdown(data):
     Формирует самостоятельный Markdown отчёта, истории или сравнения с контекстом, доказательствами
     и ограничениями.
     """
+    if 'buckets' in data and 'selection_status' in data:
+        from cloud_audit.reports.scanning import render_scan
+        return render_scan(data, safe, code)
     if 'changes' in data:
         lines = ['# Audit comparison', '', f"Before: {safe(data['before_id'])}", '', f"After: {safe(data['after_id'])}",
                  '', f"Observed: {safe(data['before_observed_at'])} → {safe(data['after_observed_at'])}", '',

@@ -1,0 +1,16 @@
+{
+  "buckets": [
+    {
+      "name": "training-private",
+      "objects": ["synthetic-private.txt"],
+      "allow_mutations": false,
+      "allow_residue": false
+    },
+    {
+      "name": "training-public",
+      "objects": ["synthetic-public.txt"],
+      "allow_mutations": false,
+      "allow_residue": false
+    }
+  ]
+}

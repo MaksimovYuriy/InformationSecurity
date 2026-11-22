@@ -42,7 +42,12 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 | [test_s3_provider.py](../tests/test_s3_provider.py) | Подключение SDK, страницы бакетов, валидация endpoint/ключей и безопасные ошибки. | 7 |
 | [test_security_workflow.py](../tests/test_security_workflow.py) | Настоящий аудит, строгая политика, самодостаточный отчёт и его проверка/офлайн-чтение. | 6 |
 
-Всего явно объявлено **134 тестовых методов**. Подсценарии subTest (в том числе 24 сочетания приёмочной матрицы) в это число отдельно не прибавляются.
+| [test_staged_scan.py](../tests/test_staged_scan.py) | Независимые этапы/бакеты, выбор целей, per-bucket разрешения, обогащённые снимки и восстановление фактов. | 8 |
+| [test_staged_probes.py](../tests/test_staged_probes.py) | Ограниченное перечисление, фактические unsigned-запросы, эффект DELETE, владение/уборка и особенности metadata/null-версии. | 15 |
+| [test_staged_cli.py](../tests/test_staged_cli.py) | Режимы ключей, scan/scan-report, приватность/согласованность сводок и полный pipeline двух бакетов. | 7 |
+| [test_staged_fixture.py](../tests/test_staged_fixture.py) | Ограниченный реальный стенд, owned-уборка и подтверждения операций из отдельных исходных запусков. | 3 |
+
+Всего явно объявлено **167 тестовых методов**. Подсценарии subTest (в том числе 24 сочетания приёмочной матрицы) в это число отдельно не прибавляются.
 
 ### `test_acceptance.py`
 
@@ -373,3 +378,78 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 - `test_exhausted_attempts_fail_and_cleanup_is_still_attempted`
 
 Общий helper `stage` создаёт искусственную пару снимок/отчёт; `run_fixture` подменяет только облачные зависимости и sleep, исполняет реальный main стендового скрипта и проверяет его сводку/уборку. Паузы не замедляют тесты, живого облака здесь нет.
+
+## Дополнение: итерация 11
+
+Запуск только нового набора: `PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_staged_*.py' -v`. Выполнены 33 новых метода и четыре затронутые структурные проверки. Полный набор после итерации 10 не перезапускался; 167 — число объявленных методов, а не результат нового полного прогона. Интеграция на трёх искусственных бакетах и ограничения — [ITERATION_11.md](ITERATION_11.md).
+
+### `test_staged_scan.py`
+
+Класс `StagedScanTests`:
+
+- `test_explicit_targets_do_not_require_listing_permission_and_continue_on_error`
+- `test_internal_stage_runs_even_when_external_listing_is_denied`
+- `test_all_buckets_requires_credentials_and_listing_failure_is_saved`
+- `test_targets_are_strict_per_bucket_and_duplicates_rejected`
+- `test_all_buckets_mutations_only_apply_to_explicit_permission_names`
+- `test_fresh_combined_snapshot_keeps_external_facts_for_offline_audit`
+- `test_recovered_get_evidence_is_not_lost_after_an_external_stage_error`
+- `test_common_policy_applies_to_discovered_buckets_too`
+
+### `test_staged_probes.py`
+
+Класс `DiscoveryTests`:
+
+- `test_pages_stop_at_limit_and_report_unseen_objects`
+- `test_denial_is_not_an_empty_successful_listing_and_broken_tokens_stop`
+
+Класс `ExternalInspectorTests`:
+
+- `test_known_object_get_runs_even_when_list_denied_and_no_mutation_opt_in`
+
+Класс `MutationEvidenceTests`:
+
+- `test_delete_204_without_observed_absence_is_unverified`
+- `test_preexisting_key_is_never_modified`
+- `test_unsigned_only_requires_residue_acceptance`
+- `test_write_denial_does_not_imply_delete_denial`
+- `test_object_lock_unknown_prevents_mutations`
+- `test_cleanup_never_removes_foreign_version_or_other_key`
+- `test_preparation_network_failure_still_searches_for_residual_versions`
+- `test_unsigned_upload_reports_residue_even_if_unsigned_cleanup_returns_success`
+- `test_cleanup_marker_header_names_are_case_insensitive`
+- `test_unversioned_cleanup_uses_current_object_not_get_object_version_permission`
+
+Класс `DiscoveryLimitTests`:
+
+- `test_server_returning_more_than_requested_is_not_a_complete_scope`
+
+Класс `MutationReadinessTests`:
+
+- `test_versioning_failure_cannot_be_mistaken_for_absent_object_lock`
+
+### `test_staged_cli.py`
+
+Класс `ScanConfigurationTests`:
+
+- `test_no_keys_is_explicit_unsigned_mode_but_partial_keys_are_invalid`
+
+Класс `ScanStorageTests`:
+
+- `test_roundtrip_is_private_immutable_and_rejects_corruption`
+
+Класс `ScanCliTests`:
+
+- `test_unsigned_cli_never_constructs_signed_provider_and_reads_offline_report`
+- `test_all_buckets_without_credentials_and_unknown_mutation_scope_fail_before_io`
+- `test_two_real_service_pipelines_save_reports_and_offline_replay_keeps_unsigned_facts`
+- `test_stored_summary_rejects_forged_findings_and_version`
+- `test_unsigned_factory_never_uses_environment_credentials`
+
+### `test_staged_fixture.py`
+
+Класс `StagedFixtureTests`:
+
+- `test_cleanup_continues_after_a_bucket_error_and_removes_versions`
+- `test_no_owned_buckets_means_no_cloud_cleanup_requests`
+- `test_public_evidence_may_come_from_separate_runs_but_requires_clean_verified_mutations`

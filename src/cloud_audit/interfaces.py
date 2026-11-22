@@ -8,6 +8,7 @@ from cloud_audit.models.resources import AuditReport, Resource, RuleResult
 from cloud_audit.models.security import AuditPolicy, Finding, SecurityReport
 from cloud_audit.models.snapshot import CollectionOptions, ConfigurationObservation, ConfigurationSnapshot
 from cloud_audit.models.history import HistoryQuery, HistoryPage
+from cloud_audit.models.scanning import ScanTarget, ScanRun, ExternalResult, ObjectDiscovery, ProbeResult
 
 
 class StorageProvider(Protocol):
@@ -36,22 +37,10 @@ class SimulationProvider(StorageProvider, Protocol):
         определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
         """
         ...
-    def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResult, ...]:
-        """
-        Контракт операции preview; реализация передаётся извне. Типы аргументов и результата
-        определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
 
 
 class ReportRepository(Protocol):
     """Контракт сохранения и чтения demo или настоящего отчёта."""
-    def save(self, report: AuditReport | SecurityReport) -> None:
-        """
-        Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-        ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
     def save(self, report: AuditReport | SecurityReport) -> None:
         """
         Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
@@ -74,22 +63,10 @@ class SecurityReportRepository(Protocol):
         ожидаемые данные, тело Protocol не выполняет интеграцию.
         """
         ...
-    def save(self, report: SecurityReport) -> None:
-        """
-        Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-        ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
 
 
 class AuditHistoryRepository(Protocol):
     """Контракт чтения полных отчётов и страниц истории."""
-    def get(self, report_id: str) -> AuditReport | SecurityReport:
-        """
-        Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
-        ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
     def get(self, report_id: str) -> AuditReport | SecurityReport:
         """
         Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
@@ -112,12 +89,6 @@ class StateStorage(Protocol):
         определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
         """
         ...
-    def prepare(self) -> None:
-        """
-        Контракт операции prepare; реализация передаётся извне. Типы аргументов и результата
-        определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
 
 
 class ConfigurationCollector(Protocol):
@@ -133,12 +104,6 @@ class ConfigurationCollector(Protocol):
 
 class SnapshotRepository(Protocol):
     """Контракт сохранения и чтения снимка по идентификатору."""
-    def save(self, snapshot: ConfigurationSnapshot) -> None:
-        """
-        Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-        ожидаемые данные, тело Protocol не выполняет интеграцию.
-        """
-        ...
     def save(self, snapshot: ConfigurationSnapshot) -> None:
         """
         Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
@@ -170,4 +135,35 @@ class SecurityRule(Protocol):
         Контракт операции evaluate; реализация передаётся извне. Типы аргументов и результата
         определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
         """
+        ...
+
+
+class ExternalInspection(Protocol):
+    """Внешняя проверка через unsigned-клиент и ограниченное чтение дополнительно найденных объектов."""
+    namespace: str
+
+    def inspect(self, target: ScanTarget, limit: int) -> ExternalResult:
+        """Возвращает факты выбранных операций и охват списка, без внутреннего аудита."""
+        ...
+
+    def read_objects(self, bucket: str, keys: tuple[str, ...]) -> tuple[ProbeResult, ...]:
+        """Проверяет новые ключи, не повторяя запись/удаление или список."""
+        ...
+
+
+class ScanRunRepository(Protocol):
+    """Сохранение и чтение самодостаточного многоцелевого запуска."""
+    def save(self, run: ScanRun) -> None:
+        """Публикует неизменяемую сводку по ID."""
+        ...
+
+    def get(self, identifier: str) -> ScanRun:
+        """Возвращает проверенную сводку без подключения к облаку."""
+        ...
+
+
+class ScanProvider(StorageProvider, ConfigurationCollector, Protocol):
+    """Авторизованный провайдер выбора бакетов, настроек и ограниченных ключей объектов."""
+    def discover_objects(self, bucket: str, limit: int) -> ObjectDiscovery:
+        """Возвращает явный полный/ограниченный/ошибочный охват объектов."""
         ...

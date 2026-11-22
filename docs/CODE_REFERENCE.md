@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser
 
 ### Функция/метод `main`
 
-[Определение](../src/cloud_audit/cli.py#L85)
+[Определение](../src/cloud_audit/cli.py#L87)
 
 Разбирает аргументы CLI, загружает настройки, собирает реализации интерфейсов, выполняет
 выбранную команду и возвращает 0/1/2/3; секреты не выводит.
@@ -92,6 +92,16 @@ def load_settings(environment: Mapping[str, str]) -> Settings
 def load_s3_settings(environment: Mapping[str, str]) -> S3Settings
 ```
 
+### Функция/метод `load_scan_settings`
+
+[Определение](../src/cloud_audit/configuration/environment.py#L52)
+
+Разрешает отсутствие обоих ключей для scan; один ключ — ошибка, external-only явно игнорирует пару.
+
+```python
+def load_scan_settings(environment: Mapping[str, str], *, external_only=False)
+```
+
 ## `src/cloud_audit/configuration/policy.py`
 
 Загружает строгую политику аудита из JSON: чувствительность, обязательные контроли, доверие,
@@ -132,6 +142,34 @@ def parse_audit_policy(data: dict) -> AuditPolicy
 def load_audit_policy(path: Path | None=None) -> AuditPolicy
 ```
 
+## `src/cloud_audit/configuration/targets.py`
+
+Строгий файл целей: объекты и разрешения мутаций задаются отдельно для каждого бакета.
+
+[Исходный файл](../src/cloud_audit/configuration/targets.py)
+
+Зависимости: `json`, `pathlib`, `cloud_audit.configuration.policy`, `cloud_audit.errors`, `cloud_audit.models.scanning`.
+
+### Функция/метод `parse_targets`
+
+[Определение](../src/cloud_audit/configuration/targets.py#L10)
+
+Проверяет поля, типы и уникальность до любых сетевых запросов; ключи доступа здесь запрещены.
+
+```python
+def parse_targets(data)
+```
+
+### Функция/метод `load_targets`
+
+[Определение](../src/cloud_audit/configuration/targets.py#L31)
+
+Читает UTF-8 JSON до 256 КиБ без исполнения содержимого.
+
+```python
+def load_targets(path: Path)
+```
+
 ## `src/cloud_audit/errors.py`
 
 Контролируемые ошибки запроса и конфигурации; сообщения не должны раскрывать ключи и исходные ответы
@@ -162,11 +200,11 @@ Invalid configuration; messages never include supplied values.
 
 [Исходный файл](../src/cloud_audit/interfaces.py)
 
-Зависимости: `typing`, `cloud_audit.models.resources`, `cloud_audit.models.security`, `cloud_audit.models.snapshot`, `cloud_audit.models.history`.
+Зависимости: `typing`, `cloud_audit.models.resources`, `cloud_audit.models.security`, `cloud_audit.models.snapshot`, `cloud_audit.models.history`, `cloud_audit.models.scanning`.
 
 ### Класс `StorageProvider`
 
-[Определение](../src/cloud_audit/interfaces.py#L13)
+[Определение](../src/cloud_audit/interfaces.py#L14)
 
 Интерфейс подключения и перечисления ресурсов; не содержит имитации или облачной логики правил.
 
@@ -186,7 +224,7 @@ connection_message: str
 
 ### Функция/метод `StorageProvider.connect`
 
-[Определение](../src/cloud_audit/interfaces.py#L17)
+[Определение](../src/cloud_audit/interfaces.py#L18)
 
 Контракт операции connect; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -197,7 +235,7 @@ def connect(self) -> None
 
 ### Функция/метод `StorageProvider.resources`
 
-[Определение](../src/cloud_audit/interfaces.py#L23)
+[Определение](../src/cloud_audit/interfaces.py#L24)
 
 Контракт операции resources; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -208,7 +246,7 @@ def resources(self) -> tuple[Resource, ...]
 
 ### Класс `SimulationProvider`
 
-[Определение](../src/cloud_audit/interfaces.py#L31)
+[Определение](../src/cloud_audit/interfaces.py#L32)
 
 Дополнительный контракт preview только для демонстрационного профиля.
 
@@ -216,18 +254,7 @@ def resources(self) -> tuple[Resource, ...]
 
 ### Функция/метод `SimulationProvider.preview`
 
-[Определение](../src/cloud_audit/interfaces.py#L33)
-
-Контракт операции preview; реализация передаётся извне. Типы аргументов и результата
-определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResult, ...]
-```
-
-### Функция/метод `SimulationProvider.preview`
-
-[Определение](../src/cloud_audit/interfaces.py#L39)
+[Определение](../src/cloud_audit/interfaces.py#L34)
 
 Контракт операции preview; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -238,7 +265,7 @@ def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResul
 
 ### Класс `ReportRepository`
 
-[Определение](../src/cloud_audit/interfaces.py#L47)
+[Определение](../src/cloud_audit/interfaces.py#L42)
 
 Контракт сохранения и чтения demo или настоящего отчёта.
 
@@ -246,18 +273,7 @@ def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResul
 
 ### Функция/метод `ReportRepository.save`
 
-[Определение](../src/cloud_audit/interfaces.py#L49)
-
-Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def save(self, report: AuditReport | SecurityReport) -> None
-```
-
-### Функция/метод `ReportRepository.save`
-
-[Определение](../src/cloud_audit/interfaces.py#L55)
+[Определение](../src/cloud_audit/interfaces.py#L44)
 
 Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -268,7 +284,7 @@ def save(self, report: AuditReport | SecurityReport) -> None
 
 ### Функция/метод `ReportRepository.get`
 
-[Определение](../src/cloud_audit/interfaces.py#L61)
+[Определение](../src/cloud_audit/interfaces.py#L50)
 
 Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -279,7 +295,7 @@ def get(self, report_id: str) -> AuditReport | SecurityReport
 
 ### Класс `SecurityReportRepository`
 
-[Определение](../src/cloud_audit/interfaces.py#L69)
+[Определение](../src/cloud_audit/interfaces.py#L58)
 
 Минимальный контракт записи настоящего отчёта для сервиса аудита.
 
@@ -287,18 +303,7 @@ def get(self, report_id: str) -> AuditReport | SecurityReport
 
 ### Функция/метод `SecurityReportRepository.save`
 
-[Определение](../src/cloud_audit/interfaces.py#L71)
-
-Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def save(self, report: SecurityReport) -> None
-```
-
-### Функция/метод `SecurityReportRepository.save`
-
-[Определение](../src/cloud_audit/interfaces.py#L77)
+[Определение](../src/cloud_audit/interfaces.py#L60)
 
 Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -309,7 +314,7 @@ def save(self, report: SecurityReport) -> None
 
 ### Класс `AuditHistoryRepository`
 
-[Определение](../src/cloud_audit/interfaces.py#L85)
+[Определение](../src/cloud_audit/interfaces.py#L68)
 
 Контракт чтения полных отчётов и страниц истории.
 
@@ -317,18 +322,7 @@ def save(self, report: SecurityReport) -> None
 
 ### Функция/метод `AuditHistoryRepository.get`
 
-[Определение](../src/cloud_audit/interfaces.py#L87)
-
-Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
-ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def get(self, report_id: str) -> AuditReport | SecurityReport
-```
-
-### Функция/метод `AuditHistoryRepository.get`
-
-[Определение](../src/cloud_audit/interfaces.py#L93)
+[Определение](../src/cloud_audit/interfaces.py#L70)
 
 Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -339,7 +333,7 @@ def get(self, report_id: str) -> AuditReport | SecurityReport
 
 ### Функция/метод `AuditHistoryRepository.history`
 
-[Определение](../src/cloud_audit/interfaces.py#L99)
+[Определение](../src/cloud_audit/interfaces.py#L76)
 
 Контракт операции history; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -350,7 +344,7 @@ def history(self, query: HistoryQuery) -> HistoryPage
 
 ### Класс `StateStorage`
 
-[Определение](../src/cloud_audit/interfaces.py#L107)
+[Определение](../src/cloud_audit/interfaces.py#L84)
 
 Контракт подготовки локального состояния, допускающий другую реализацию.
 
@@ -358,18 +352,7 @@ def history(self, query: HistoryQuery) -> HistoryPage
 
 ### Функция/метод `StateStorage.prepare`
 
-[Определение](../src/cloud_audit/interfaces.py#L109)
-
-Контракт операции prepare; реализация передаётся извне. Типы аргументов и результата
-определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def prepare(self) -> None
-```
-
-### Функция/метод `StateStorage.prepare`
-
-[Определение](../src/cloud_audit/interfaces.py#L115)
+[Определение](../src/cloud_audit/interfaces.py#L86)
 
 Контракт операции prepare; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -380,7 +363,7 @@ def prepare(self) -> None
 
 ### Класс `ConfigurationCollector`
 
-[Определение](../src/cloud_audit/interfaces.py#L123)
+[Определение](../src/cloud_audit/interfaces.py#L94)
 
 Контракт получения нормализованных наблюдений выбранного ресурса.
 
@@ -394,7 +377,7 @@ mode: str
 
 ### Функция/метод `ConfigurationCollector.collect`
 
-[Определение](../src/cloud_audit/interfaces.py#L126)
+[Определение](../src/cloud_audit/interfaces.py#L97)
 
 Контракт операции collect; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -405,7 +388,7 @@ def collect(self, resource: Resource, options: CollectionOptions | None=None) ->
 
 ### Класс `SnapshotRepository`
 
-[Определение](../src/cloud_audit/interfaces.py#L134)
+[Определение](../src/cloud_audit/interfaces.py#L105)
 
 Контракт сохранения и чтения снимка по идентификатору.
 
@@ -413,18 +396,7 @@ def collect(self, resource: Resource, options: CollectionOptions | None=None) ->
 
 ### Функция/метод `SnapshotRepository.save`
 
-[Определение](../src/cloud_audit/interfaces.py#L136)
-
-Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
-ожидаемые данные, тело Protocol не выполняет интеграцию.
-
-```python
-def save(self, snapshot: ConfigurationSnapshot) -> None
-```
-
-### Функция/метод `SnapshotRepository.save`
-
-[Определение](../src/cloud_audit/interfaces.py#L142)
+[Определение](../src/cloud_audit/interfaces.py#L107)
 
 Контракт операции save; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -435,7 +407,7 @@ def save(self, snapshot: ConfigurationSnapshot) -> None
 
 ### Функция/метод `SnapshotRepository.get`
 
-[Определение](../src/cloud_audit/interfaces.py#L148)
+[Определение](../src/cloud_audit/interfaces.py#L113)
 
 Контракт операции get; реализация передаётся извне. Типы аргументов и результата определяют
 ожидаемые данные, тело Protocol не выполняет интеграцию.
@@ -446,7 +418,7 @@ def get(self, snapshot_id: str) -> ConfigurationSnapshot
 
 ### Класс `SecurityRule`
 
-[Определение](../src/cloud_audit/interfaces.py#L156)
+[Определение](../src/cloud_audit/interfaces.py#L121)
 
 Контракт правила: ID, обязательные данные, применимость, алгоритм, рекомендация и подтверждение.
 
@@ -478,7 +450,7 @@ verification: str
 
 ### Функция/метод `SecurityRule.applicable`
 
-[Определение](../src/cloud_audit/interfaces.py#L162)
+[Определение](../src/cloud_audit/interfaces.py#L127)
 
 Проверяет поддерживаемый scope снимка; при неприменимости движок формирует not_applicable
 без выполнения алгоритма.
@@ -489,13 +461,93 @@ def applicable(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> bo
 
 ### Функция/метод `SecurityRule.evaluate`
 
-[Определение](../src/cloud_audit/interfaces.py#L168)
+[Определение](../src/cloud_audit/interfaces.py#L133)
 
 Контракт операции evaluate; реализация передаётся извне. Типы аргументов и результата
 определяют ожидаемые данные, тело Protocol не выполняет интеграцию.
 
 ```python
 def evaluate(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> Finding
+```
+
+### Класс `ExternalInspection`
+
+[Определение](../src/cloud_audit/interfaces.py#L141)
+
+Внешняя проверка через unsigned-клиент и ограниченное чтение дополнительно найденных объектов.
+
+Базовые классы: `Protocol`.
+
+Поле/константа `ExternalInspection.namespace`:
+
+```python
+namespace: str
+```
+
+### Функция/метод `ExternalInspection.inspect`
+
+[Определение](../src/cloud_audit/interfaces.py#L145)
+
+Возвращает факты выбранных операций и охват списка, без внутреннего аудита.
+
+```python
+def inspect(self, target: ScanTarget, limit: int) -> ExternalResult
+```
+
+### Функция/метод `ExternalInspection.read_objects`
+
+[Определение](../src/cloud_audit/interfaces.py#L149)
+
+Проверяет новые ключи, не повторяя запись/удаление или список.
+
+```python
+def read_objects(self, bucket: str, keys: tuple[str, ...]) -> tuple[ProbeResult, ...]
+```
+
+### Класс `ScanRunRepository`
+
+[Определение](../src/cloud_audit/interfaces.py#L154)
+
+Сохранение и чтение самодостаточного многоцелевого запуска.
+
+Базовые классы: `Protocol`.
+
+### Функция/метод `ScanRunRepository.save`
+
+[Определение](../src/cloud_audit/interfaces.py#L156)
+
+Публикует неизменяемую сводку по ID.
+
+```python
+def save(self, run: ScanRun) -> None
+```
+
+### Функция/метод `ScanRunRepository.get`
+
+[Определение](../src/cloud_audit/interfaces.py#L160)
+
+Возвращает проверенную сводку без подключения к облаку.
+
+```python
+def get(self, identifier: str) -> ScanRun
+```
+
+### Класс `ScanProvider`
+
+[Определение](../src/cloud_audit/interfaces.py#L165)
+
+Авторизованный провайдер выбора бакетов, настроек и ограниченных ключей объектов.
+
+Базовые классы: `StorageProvider, ConfigurationCollector, Protocol`.
+
+### Функция/метод `ScanProvider.discover_objects`
+
+[Определение](../src/cloud_audit/interfaces.py#L167)
+
+Возвращает явный полный/ограниченный/ошибочный охват объектов.
+
+```python
+def discover_objects(self, bucket: str, limit: int) -> ObjectDiscovery
 ```
 
 ## `src/cloud_audit/models/__init__.py`
@@ -903,6 +955,362 @@ resource: Resource
 
 ```python
 results: tuple[RuleResult, ...]
+```
+
+## `src/cloud_audit/models/scanning.py`
+
+Цели и самодостаточный результат последовательной внешней/внутренней проверки бакетов.
+
+[Исходный файл](../src/cloud_audit/models/scanning.py)
+
+Зависимости: `dataclasses`, `datetime`, `re`, `cloud_audit.models.security`, `cloud_audit.models.snapshot`.
+
+### Класс `ScanTarget`
+
+[Определение](../src/cloud_audit/models/scanning.py#L11)
+
+Отдельный бакет, известные объекты, контекст и явное разрешение мутаций/остатков.
+
+Поле/константа `ScanTarget.name`:
+
+```python
+name: str
+```
+
+Поле/константа `ScanTarget.object_keys`:
+
+```python
+object_keys: tuple[str, ...] = ()
+```
+
+Поле/константа `ScanTarget.allow_mutations`:
+
+```python
+allow_mutations: bool = False
+```
+
+Поле/константа `ScanTarget.allow_residue`:
+
+```python
+allow_residue: bool = False
+```
+
+Поле/константа `ScanTarget.policy`:
+
+```python
+policy: AuditPolicy = field(default_factory=AuditPolicy)
+```
+
+### Функция/метод `ScanTarget.__post_init__`
+
+[Определение](../src/cloud_audit/models/scanning.py#L19)
+
+Проверяет имя S3-бакета, ограниченный охват и явные булевы разрешения.
+
+```python
+def __post_init__(self)
+```
+
+### Класс `ProbeResult`
+
+[Определение](../src/cloud_audit/models/scanning.py#L29)
+
+Факт одного unsigned-запроса; подготовка/уборка и проверка эффекта указаны отдельно.
+
+Поле/константа `ProbeResult.operation`:
+
+```python
+operation: str
+```
+
+Поле/константа `ProbeResult.target`:
+
+```python
+target: str | None
+```
+
+Поле/константа `ProbeResult.outcome`:
+
+```python
+outcome: str
+```
+
+Поле/константа `ProbeResult.http_status`:
+
+```python
+http_status: int | None
+```
+
+Поле/константа `ProbeResult.checked_at`:
+
+```python
+checked_at: str
+```
+
+Поле/константа `ProbeResult.verification`:
+
+```python
+verification: str | None = None
+```
+
+Поле/константа `ProbeResult.preparation`:
+
+```python
+preparation: str = 'none'
+```
+
+Поле/константа `ProbeResult.cleanup`:
+
+```python
+cleanup: str = 'not_needed'
+```
+
+Поле/константа `ProbeResult.reason`:
+
+```python
+reason: str | None = None
+```
+
+### Функция/метод `ProbeResult.__post_init__`
+
+[Определение](../src/cloud_audit/models/scanning.py#L41)
+
+Отклоняет нераспознанные статусы, неверный HTTP и время без timezone.
+
+```python
+def __post_init__(self)
+```
+
+### Класс `ObjectDiscovery`
+
+[Определение](../src/cloud_audit/models/scanning.py#L55)
+
+Ограниченное перечисление объектов; limited/failed не означает полного охвата.
+
+Поле/константа `ObjectDiscovery.keys`:
+
+```python
+keys: tuple[str, ...]
+```
+
+Поле/константа `ObjectDiscovery.status`:
+
+```python
+status: str
+```
+
+Поле/константа `ObjectDiscovery.source`:
+
+```python
+source: str
+```
+
+Поле/константа `ObjectDiscovery.limit`:
+
+```python
+limit: int
+```
+
+Поле/константа `ObjectDiscovery.error_code`:
+
+```python
+error_code: str | None = None
+```
+
+### Функция/метод `ObjectDiscovery.__post_init__`
+
+[Определение](../src/cloud_audit/models/scanning.py#L63)
+
+Проверяет предел перечисления и допустимые источник/статус.
+
+```python
+def __post_init__(self)
+```
+
+### Класс `ExternalResult`
+
+[Определение](../src/cloud_audit/models/scanning.py#L73)
+
+Набор независимых проб и охват анонимного списка, без облачных секретов.
+
+Поле/константа `ExternalResult.probes`:
+
+```python
+probes: tuple[ProbeResult, ...]
+```
+
+Поле/константа `ExternalResult.discovery`:
+
+```python
+discovery: ObjectDiscovery
+```
+
+### Класс `BucketScanResult`
+
+[Определение](../src/cloud_audit/models/scanning.py#L80)
+
+Результаты двух этапов одного бакета, находки внешнего этапа и ссылка на внутренний отчёт.
+
+Поле/константа `BucketScanResult.bucket`:
+
+```python
+bucket: str
+```
+
+Поле/константа `BucketScanResult.external_status`:
+
+```python
+external_status: str
+```
+
+Поле/константа `BucketScanResult.external`:
+
+```python
+external: ExternalResult | None
+```
+
+Поле/константа `BucketScanResult.external_findings`:
+
+```python
+external_findings: tuple[Finding, ...]
+```
+
+Поле/константа `BucketScanResult.internal_status`:
+
+```python
+internal_status: str
+```
+
+Поле/константа `BucketScanResult.internal_report_id`:
+
+```python
+internal_report_id: str | None
+```
+
+Поле/константа `BucketScanResult.internal_discovery`:
+
+```python
+internal_discovery: ObjectDiscovery | None
+```
+
+Поле/константа `BucketScanResult.errors`:
+
+```python
+errors: tuple[str, ...] = ()
+```
+
+Поле/константа `BucketScanResult.limitations`:
+
+```python
+limitations: tuple[str, ...] = ()
+```
+
+Поле/константа `BucketScanResult.target`:
+
+```python
+target: ScanTarget | None = None
+```
+
+### Функция/метод `BucketScanResult.__post_init__`
+
+[Определение](../src/cloud_audit/models/scanning.py#L93)
+
+Проверяет согласованность статусов этапов и ссылки на внутренний отчёт.
+
+```python
+def __post_init__(self)
+```
+
+### Класс `ScanRun`
+
+[Определение](../src/cloud_audit/models/scanning.py#L101)
+
+Общая сводка запуска с сохранёнными фактами каждого бакета и полнотой выбора целей.
+
+Поле/константа `ScanRun.id`:
+
+```python
+id: str
+```
+
+Поле/константа `ScanRun.schema_version`:
+
+```python
+schema_version: int
+```
+
+Поле/константа `ScanRun.namespace`:
+
+```python
+namespace: str
+```
+
+Поле/константа `ScanRun.started_at`:
+
+```python
+started_at: str
+```
+
+Поле/константа `ScanRun.completed_at`:
+
+```python
+completed_at: str
+```
+
+Поле/константа `ScanRun.selection_source`:
+
+```python
+selection_source: str
+```
+
+Поле/константа `ScanRun.selection_status`:
+
+```python
+selection_status: str
+```
+
+Поле/константа `ScanRun.max_objects`:
+
+```python
+max_objects: int
+```
+
+Поле/константа `ScanRun.authenticated`:
+
+```python
+authenticated: bool
+```
+
+Поле/константа `ScanRun.buckets`:
+
+```python
+buckets: tuple[BucketScanResult, ...]
+```
+
+Поле/константа `ScanRun.errors`:
+
+```python
+errors: tuple[str, ...] = ()
+```
+
+### Функция/метод `ScanRun.__post_init__`
+
+[Определение](../src/cloud_audit/models/scanning.py#L115)
+
+Проверяет версию, ID, время, пределы, происхождение целей и уникальность бакетов.
+
+```python
+def __post_init__(self)
+```
+
+### Функция/метод `ScanRun.incomplete`
+
+[Определение](../src/cloud_audit/models/scanning.py#L128)
+
+Определяет частичность выбранных операций и охвата; выключенные мутации не считаются выполненными.
+
+```python
+def incomplete(self)
 ```
 
 ## `src/cloud_audit/models/security.py`
@@ -1804,6 +2212,194 @@ ID отклоняет.
 def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResult, ...]
 ```
 
+## `src/cloud_audit/providers/discovery.py`
+
+Постраничный список объектов с пределами объёма и запросов; ошибка не становится пустым успехом.
+
+[Исходный файл](../src/cloud_audit/providers/discovery.py)
+
+Зависимости: `datetime`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.models.scanning`.
+
+### Класс `ObjectEnumerator`
+
+[Определение](../src/cloud_audit/providers/discovery.py#L9)
+
+Использует переданный signed/unsigned клиент; возвращает охват и факт самого List-запроса.
+
+### Функция/метод `ObjectEnumerator.__init__`
+
+[Определение](../src/cloud_audit/providers/discovery.py#L11)
+
+Фиксирует клиент и вид авторизации для доказательств.
+
+```python
+def __init__(self, client, source)
+```
+
+### Функция/метод `ObjectEnumerator.list`
+
+[Определение](../src/cloud_audit/providers/discovery.py#L15)
+
+Читает до limit уникальных ключей и максимум 20 страниц, обнаруживая неверные токены/ответы.
+
+```python
+def list(self, bucket, limit)
+```
+
+## `src/cloud_audit/providers/external.py`
+
+Внешний этап: unsigned List/Get и отдельно разрешённые искусственные Write/Delete.
+
+[Исходный файл](../src/cloud_audit/providers/external.py)
+
+Зависимости: `dataclasses`, `cloud_audit.models.scanning`, `cloud_audit.providers.anonymous`, `cloud_audit.providers.discovery`, `cloud_audit.providers.mutations`, `datetime`.
+
+### Класс `ExternalInspector`
+
+[Определение](../src/cloud_audit/providers/external.py#L10)
+
+Не требует ключей; переданный signed-клиент применяется только для подготовки/уборки мутаций.
+
+### Функция/метод `ExternalInspector.__init__`
+
+[Определение](../src/cloud_audit/providers/external.py#L12)
+
+Сохраняет разделённые клиенты и идентичность endpoint.
+
+```python
+def __init__(self, anonymous, namespace, signed=None)
+```
+
+### Функция/метод `ExternalInspector.from_settings`
+
+[Определение](../src/cloud_audit/providers/external.py#L18)
+
+Использует существующую фабрику UNSIGNED с пустыми credentials, даже если ключи заданы в окружении.
+
+```python
+def from_settings(cls, settings, signed=None)
+```
+
+### Функция/метод `ExternalInspector.inspect`
+
+[Определение](../src/cloud_audit/providers/external.py#L23)
+
+Сначала List/Get, затем только явно разрешённые мутации выбранного бакета.
+
+```python
+def inspect(self, target, limit)
+```
+
+### Функция/метод `ExternalInspector.read_objects`
+
+[Определение](../src/cloud_audit/providers/external.py#L37)
+
+GET Range bytes=0-0 каждого выбранного ключа, без повторного List или мутаций.
+
+```python
+def read_objects(self, bucket, keys)
+```
+
+## `src/cloud_audit/providers/mutations.py`
+
+Изолированные unsigned PUT/DELETE с отдельными signed-подготовкой, подтверждением и уборкой.
+
+[Исходный файл](../src/cloud_audit/providers/mutations.py)
+
+Зависимости: `dataclasses`, `datetime`, `uuid`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.models.scanning`.
+
+Поле/константа `ERRORS`:
+
+```python
+ERRORS = (BotoCoreError, ClientError, ResponseParserError, OSError, ValueError, TypeError, KeyError, AttributeError)
+```
+
+### Класс `MutationProber`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L13)
+
+Работает только со своими случайными ключами; неподтверждённый эффект не становится allowed.
+
+### Функция/метод `MutationProber.__init__`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L15)
+
+Разделяет клиента проверочных запросов и клиента подготовки/уборки.
+
+```python
+def __init__(self, anonymous, signed=None)
+```
+
+### Функция/метод `MutationProber.run`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L20)
+
+Проверяет две независимые цели; без ключей требует согласия на возможные неудалённые файлы.
+
+```python
+def run(self, bucket, *, allow_residue=False)
+```
+
+### Функция/метод `MutationProber._ready`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L29)
+
+Мутации с ключами требуют известного состояния версионирования и подтверждённого отсутствия Object Lock.
+
+```python
+def _ready(self, bucket)
+```
+
+### Функция/метод `MutationProber._result`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L46)
+
+Создаёт приватное по составу доказательство без исходных сообщений SDK.
+
+```python
+def _result(self, operation, key, outcome, code=None, **kwargs)
+```
+
+### Функция/метод `MutationProber._request`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L50)
+
+Выполняет только проверочный unsigned-запрос и классифицирует HTTP-ответ; возвращает также метаданные для уборки.
+
+```python
+def _request(self, operation, key, call)
+```
+
+### Функция/метод `MutationProber._one`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L65)
+
+Проверяет отсутствие старых версий, готовит собственную цель и подтверждает удаление до уборки.
+
+```python
+def _one(self, bucket, key, operation)
+```
+
+### Функция/метод `MutationProber._present`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L107)
+
+Возвращает True при HEAD 2xx, False только при точном 404 объекта, иначе неизвестность.
+
+```python
+def _present(self, client, bucket, key)
+```
+
+### Функция/метод `MutationProber._cleanup`
+
+[Определение](../src/cloud_audit/providers/mutations.py#L118)
+
+Удаляет только версии с меткой нашей пробы и известные маркеры; неизвестный остаток явно сохраняется в отчёте.
+
+```python
+def _cleanup(self, bucket, key, token, marker_ids, created, attempted)
+```
+
 ## `src/cloud_audit/providers/s3.py`
 
 Подписанный S3-адаптер: подключение, список бакетов, сбор настроек и включаемые явно анонимные пробы.
@@ -1884,6 +2480,16 @@ Object Lock.
 def collect(self, resource: Resource, options: CollectionOptions | None=None) -> tuple[ConfigurationObservation, ...]
 ```
 
+### Функция/метод `S3Provider.discover_objects`
+
+[Определение](../src/cloud_audit/providers/s3.py#L114)
+
+Перечисляет ограниченные ключи подписанным клиентом; не читает содержимое объектов.
+
+```python
+def discover_objects(self, bucket, limit)
+```
+
 ## `src/cloud_audit/reports/__init__.py`
 
 Представления, форматирование и экспорт результатов.
@@ -1943,13 +2549,29 @@ def render_markdown(data)
 
 ### Функция/метод `write_document`
 
-[Определение](../src/cloud_audit/reports/formatting.py#L98)
+[Определение](../src/cloud_audit/reports/formatting.py#L101)
 
 Создаёт новый файл 0600 через O_EXCL, записывает/синхронизирует текст; удаляет незавершённый
 файл при ошибке.
 
 ```python
 def write_document(path: Path, content: str) -> None
+```
+
+## `src/cloud_audit/reports/scanning.py`
+
+Читаемая общая сводка ступенчатого запуска и полные доказательства каждого бакета.
+
+[Исходный файл](../src/cloud_audit/reports/scanning.py)
+
+### Функция/метод `render_scan`
+
+[Определение](../src/cloud_audit/reports/scanning.py#L4)
+
+Разделяет статусы операций и внутреннего анализа; выводит ограничения и остаточные цели.
+
+```python
+def render_scan(data, safe, code)
 ```
 
 ## `src/cloud_audit/rules/__init__.py`
@@ -2136,6 +2758,24 @@ def select(self, selected: tuple[str, ...]) -> tuple[SecurityRule, ...]
 
 ```python
 def evaluate(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy, selected: tuple[str, ...]=()) -> tuple[Finding, ...]
+```
+
+## `src/cloud_audit/rules/external.py`
+
+Оценка только наблюдавшихся unsigned-операций, без предположений о полной конфигурации.
+
+[Исходный файл](../src/cloud_audit/rules/external.py)
+
+Зависимости: `dataclasses`, `json`, `cloud_audit.models.security`, `cloud_audit.rules.risk`.
+
+### Функция/метод `external_findings`
+
+[Определение](../src/cloud_audit/rules/external.py#L9)
+
+Группирует пробы четырёх операций; отказ относится только к проверенным целям, пропуск не даёт passed.
+
+```python
+def external_findings(probes, policy)
 ```
 
 ## `src/cloud_audit/rules/governance.py`
@@ -2554,6 +3194,34 @@ potential_risk; неизвестное значение — insufficient_data.
 def evaluate(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> Finding
 ```
 
+## `src/cloud_audit/scan_cli.py`
+
+Аргументы и сборка зависимостей ступенчатого scan, отдельно от прежних одиночных команд.
+
+[Исходный файл](../src/cloud_audit/scan_cli.py)
+
+Зависимости: `dataclasses`, `pathlib`, `os`, `cloud_audit.configuration.environment`, `cloud_audit.configuration.policy`, `cloud_audit.configuration.targets`, `cloud_audit.errors`, `cloud_audit.models.scanning`, `cloud_audit.providers.external`, `cloud_audit.providers.s3`, `cloud_audit.rules.engine`, `cloud_audit.rules.registry`, `cloud_audit.services.audit`, `cloud_audit.services.scanning`, `cloud_audit.services.snapshots`, `cloud_audit.storage.scans`.
+
+### Функция/метод `add_scan_commands`
+
+[Определение](../src/cloud_audit/scan_cli.py#L21)
+
+Добавляет три взаимоисключающих источника целей и отдельное офлайн-чтение сводки.
+
+```python
+def add_scan_commands(commands)
+```
+
+### Функция/метод `execute_scan`
+
+[Определение](../src/cloud_audit/scan_cli.py#L40)
+
+Создаёт signed-клиента только при полной паре ключей; внешний клиент всегда UNSIGNED.
+
+```python
+def execute_scan(args, settings, reports, snapshots)
+```
+
 ## `src/cloud_audit/services/__init__.py`
 
 Сценарии работы приложения над внедряемыми интерфейсами.
@@ -2822,6 +3490,60 @@ def simulate(self, resource_id: str, rules: tuple[str, ...]) -> AuditReport
 def report(self, report_id: str) -> AuditReport | SecurityReport
 ```
 
+## `src/cloud_audit/services/scanning.py`
+
+Последовательная обработка нескольких бакетов с независимыми внешним и внутренним этапами.
+
+[Исходный файл](../src/cloud_audit/services/scanning.py)
+
+Зависимости: `dataclasses`, `datetime`, `uuid`, `cloud_audit.errors`, `cloud_audit.interfaces`, `cloud_audit.services.snapshots`, `cloud_audit.services.audit`, `cloud_audit.models.scanning`, `cloud_audit.models.snapshot`, `cloud_audit.rules.external`.
+
+### Класс `ScanService`
+
+[Определение](../src/cloud_audit/services/scanning.py#L15)
+
+Не создаёт SDK/файлы: получает инспектор, репозитории и необязательные авторизованные сервисы извне.
+
+### Функция/метод `ScanService.__init__`
+
+[Определение](../src/cloud_audit/services/scanning.py#L17)
+
+Сохраняет зависимости; отсутствие провайдера означает внешний режим без ключей.
+
+```python
+def __init__(self, external: ExternalInspection, repository: ScanRunRepository, provider: ScanProvider | None=None, snapshots: SnapshotService | None=None, audits: SecurityAuditService | None=None)
+```
+
+### Функция/метод `ScanService.run`
+
+[Определение](../src/cloud_audit/services/scanning.py#L23)
+
+Выбирает цели, сохраняет отдельные ошибки и общий результат; мутации не включаются автоматически при обнаружении бакета.
+
+```python
+def run(self, targets, *, all_buckets=False, max_objects=20, external_only=False, mutation_buckets=(), allow_residue=False, selection_source='explicit', default_policy=None)
+```
+
+### Функция/метод `ScanService._bucket`
+
+[Определение](../src/cloud_audit/services/scanning.py#L56)
+
+Ошибка или запрет внешнего этапа не подавляет внутренний; ошибка одного бакета не прерывает другие.
+
+```python
+def _bucket(self, target, limit, external_only)
+```
+
+### Функция/метод `ScanService._observation`
+
+[Определение](../src/cloud_audit/services/scanning.py#L107)
+
+Переносит только доказанные исходы проб в evidence внутреннего отчёта; пропуски становятся error, не allowed.
+
+```python
+def _observation(probe)
+```
+
 ## `src/cloud_audit/services/snapshots.py`
 
 Оркестрирует сбор и сохранение снимка; фиксирует начало последовательного, не атомарного наблюдения
@@ -2857,6 +3579,16 @@ def __init__(self, collector: ConfigurationCollector, repository: SnapshotReposi
 
 ```python
 def collect(self, resource_id: str, options: CollectionOptions | None=None) -> ConfigurationSnapshot
+```
+
+### Функция/метод `SnapshotService.enrich`
+
+[Определение](../src/cloud_audit/services/snapshots.py#L47)
+
+Сохраняет новый снимок с фактами внешнего этапа и пересчитанной полнотой, не меняя старый ID.
+
+```python
+def enrich(self, snapshot, observations)
 ```
 
 ## `src/cloud_audit/storage/__init__.py`
@@ -2961,6 +3693,86 @@ def identifiers(self) -> tuple[str, ...]
 
 ```python
 def decode_security_report(data: dict) -> SecurityReport
+```
+
+## `src/cloud_audit/storage/scans.py`
+
+Версионированные приватные сводки scan: атомарное сохранение и строгое чтение без сети.
+
+[Исходный файл](../src/cloud_audit/storage/scans.py)
+
+Зависимости: `dataclasses`, `pathlib`, `types`, `typing`, `json`, `os`, `re`, `tempfile`, `cloud_audit.errors`, `cloud_audit.models.scanning`, `cloud_audit.rules.external`, `cloud_audit.configuration.policy`.
+
+### Функция/метод `decode_value`
+
+[Определение](../src/cloud_audit/storage/scans.py#L17)
+
+Восстанавливает только известные dataclass/tuple/скаляры со строгими типами, не исполняя JSON.
+
+```python
+def decode_value(value, annotation)
+```
+
+### Класс `JsonScanRepository`
+
+[Определение](../src/cloud_audit/storage/scans.py#L41)
+
+Сохраняет общую сводку отдельно от SQLite-отчётов бакетов, без изменения прежней схемы БД.
+
+Поле/константа `JsonScanRepository.MAX_BYTES`:
+
+```python
+MAX_BYTES = 32 * 1024 * 1024
+```
+
+### Функция/метод `JsonScanRepository.__init__`
+
+[Определение](../src/cloud_audit/storage/scans.py#L45)
+
+Принимает выделенный приватный каталог сводок.
+
+```python
+def __init__(self, directory: Path)
+```
+
+### Функция/метод `JsonScanRepository._path`
+
+[Определение](../src/cloud_audit/storage/scans.py#L49)
+
+Проверяет UUID до построения пути.
+
+```python
+def _path(self, identifier)
+```
+
+### Функция/метод `JsonScanRepository.save`
+
+[Определение](../src/cloud_audit/storage/scans.py#L55)
+
+Атомарно публикует новый файл 0600 без перезаписи другого результата с тем же ID.
+
+```python
+def save(self, run: ScanRun)
+```
+
+### Функция/метод `JsonScanRepository.get`
+
+[Определение](../src/cloud_audit/storage/scans.py#L82)
+
+Читает и проверяет форму/версию/вложенные типы; повреждённые сводки не становятся пустым успехом.
+
+```python
+def get(self, identifier)
+```
+
+### Функция/метод `JsonScanRepository._validate`
+
+[Определение](../src/cloud_audit/storage/scans.py#L97)
+
+Проверяет согласованность сохранённых выводов с пробами и контекстом, а не только тип JSON.
+
+```python
+def _validate(run)
 ```
 
 ## `src/cloud_audit/storage/snapshot_schema.py`
@@ -3373,4 +4185,78 @@ def run_stage(name)
 
 ```python
 def verify_stage(name, opened=False)
+```
+
+## `scripts/verify_staged_scan.py`
+
+Изолированный трёхбакетный стенд scan: закрыто/публично/закрыто, только искусственные данные.
+
+[Исходный файл](../scripts/verify_staged_scan.py)
+
+Зависимости: `argparse`, `json`, `os`, `pathlib`, `subprocess`, `sys`, `time`, `uuid`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.configuration.environment`, `cloud_audit.providers.s3`, `cloud_audit.reports.formatting`, `cloud_audit.storage.state`.
+
+Поле/константа `ERRORS`:
+
+```python
+ERRORS = (ClientError, BotoCoreError, ResponseParserError, OSError, ValueError, KeyError, TypeError)
+```
+
+### Функция/метод `cleanup_fixture`
+
+[Определение](../scripts/verify_staged_scan.py#L22)
+
+Закрывает и удаляет только успешно созданные этим запуском бакеты, продолжая после ошибок.
+
+```python
+def cleanup_fixture(client, owned)
+```
+
+### Функция/метод `public_phase_confirmed`
+
+[Определение](../scripts/verify_staged_scan.py#L48)
+
+Подтверждает существование каждой публичной операции по отдельным исходным запускам, не создавая объединённого фиктивного отчёта.
+
+```python
+def public_phase_confirmed(attempts, names, key)
+```
+
+### Функция/метод `main`
+
+[Определение](../scripts/verify_staged_scan.py#L73)
+
+Создаёт отдельный стенд с явным флагом, запускает реальный CLI и записывает приватную сводку всех попыток.
+
+```python
+def main()
+```
+
+### Функция/метод `main.invoke`
+
+[Определение](../scripts/verify_staged_scan.py#L90)
+
+Запускает публичный CLI отдельным процессом; сохраняет только контролируемые факты и идентификаторы.
+
+```python
+def invoke(label, file, unsigned=False)
+```
+
+### Функция/метод `main.matches`
+
+[Определение](../scripts/verify_staged_scan.py#L110)
+
+Требует реальные исходы запросов, а не только наличие разрешающих настроек.
+
+```python
+def matches(run, opened)
+```
+
+### Функция/метод `main.settled`
+
+[Определение](../scripts/verify_staged_scan.py#L131)
+
+Даёт политике до пяти ограниченных попыток применения, не скрывая неуспешные наблюдения.
+
+```python
+def settled(label, opened)
 ```

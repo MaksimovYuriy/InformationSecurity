@@ -43,3 +43,17 @@ class SnapshotService:
                                          status, observations, keys, namespace)
         self._repository.save(snapshot)
         return snapshot
+
+    def enrich(self, snapshot, observations):
+        """Сохраняет новый снимок с фактами внешнего этапа и пересчитанной полнотой, не меняя старый ID."""
+        from dataclasses import replace
+        facts = {row.name: row for row in snapshot.observations}
+        facts.update({row.name: row for row in observations})
+        values = tuple(facts.values())
+        times = [datetime.fromisoformat(snapshot.collected_at)]
+        times.extend(datetime.fromisoformat(row.data['checked_at']) for row in observations if row.name.startswith('anonymous_'))
+        result = replace(snapshot, id=uuid4().hex, schema_version=2, limitations=collection_limitations(snapshot.object_keys),
+                         observations=values, collected_at=min(times).isoformat(),
+                         collection_status='complete_for_scope' if collection_complete(values) else 'partial')
+        self._repository.save(result)
+        return result

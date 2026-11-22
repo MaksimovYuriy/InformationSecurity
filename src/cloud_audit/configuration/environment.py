@@ -47,3 +47,15 @@ def load_s3_settings(environment: Mapping[str, str]) -> S3Settings:
             raise ConfigurationError(f'Missing {name}')
         values.append(value)
     return S3Settings(endpoint, region, *values)
+
+
+def load_scan_settings(environment: Mapping[str, str], *, external_only=False):
+    """Разрешает отсутствие обоих ключей для scan; один ключ — ошибка, external-only явно игнорирует пару."""
+    from dataclasses import replace
+    access, secret = environment.get('AWS_ACCESS_KEY_ID', ''), environment.get('AWS_SECRET_ACCESS_KEY', '')
+    if not external_only and bool(access.strip()) != bool(secret.strip()):
+        raise ConfigurationError('Both S3 credentials must be supplied together')
+    authenticated = bool(access.strip() and secret.strip()) and not external_only
+    checked = load_s3_settings(dict(environment, AWS_ACCESS_KEY_ID=access if authenticated else 'validation-only',
+                                   AWS_SECRET_ACCESS_KEY=secret if authenticated else 'validation-only'))
+    return (checked if authenticated else replace(checked, access_key='', secret_key='')), authenticated
