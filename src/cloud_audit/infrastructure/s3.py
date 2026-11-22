@@ -7,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from cloud_audit.application.audit import AuditError
 from cloud_audit.domain.audit import Resource
+from cloud_audit.domain.snapshot import ConfigurationObservation
 from cloud_audit.infrastructure.configuration import S3Settings
 
 
@@ -76,3 +77,7 @@ class S3Provider:
 
     def preview(self, resource, rules):
         raise AuditError('Cloud security audit is not implemented yet')
+
+    def collect(self, resource: Resource) -> tuple[ConfigurationObservation, ...]:
+        from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
+        return S3ConfigurationCollector(self._client).collect(resource)
