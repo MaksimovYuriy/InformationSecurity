@@ -1,0 +1,7 @@
+{
+  "data_sensitivity": "unknown",
+  "required_controls": ["versioning"],
+  "allowed_external_accounts": [],
+  "required_permissions": [],
+  "exceptions": []
+}

@@ -2,6 +2,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from cloud_audit.domain.audit import AuditReport, Resource, RuleResult
+from cloud_audit.domain.rules import SecurityReport
 
 
 class AuditError(ValueError):
@@ -18,8 +19,8 @@ class StorageProvider(Protocol):
 
 
 class ReportRepository(Protocol):
-    def save(self, report: AuditReport) -> None: ...
-    def get(self, report_id: str) -> AuditReport: ...
+    def save(self, report: AuditReport | SecurityReport) -> None: ...
+    def get(self, report_id: str) -> AuditReport | SecurityReport: ...
 
 
 class AuditService:
@@ -46,5 +47,5 @@ class AuditService:
         self._reports.save(report)
         return report
 
-    def report(self, report_id: str) -> AuditReport:
+    def report(self, report_id: str) -> AuditReport | SecurityReport:
         return self._reports.get(report_id)
