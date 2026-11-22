@@ -4,6 +4,9 @@ from cloud_audit.domain.audit import Resource, RuleResult
 
 class DemoProvider:
     """Fixed fixtures, not a security rule engine or a cloud connection."""
+    mode = 'demo'
+    audit_available = True
+    connection_message = 'Simulated connection; no cloud contacted'
 
     def connect(self) -> None:
         pass

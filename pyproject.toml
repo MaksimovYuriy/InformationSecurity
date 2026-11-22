@@ -7,7 +7,7 @@ name = "cloud-storage-audit"
 version = "0.1.0"
 description = "Cloud storage security auditor"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["boto3==1.35.99"]
 
 [project.scripts]
 cloud-audit = "cloud_audit.cli:main"

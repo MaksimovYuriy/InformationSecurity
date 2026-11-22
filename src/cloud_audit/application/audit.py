@@ -9,6 +9,9 @@ class AuditError(ValueError):
 
 
 class StorageProvider(Protocol):
+    mode: str
+    audit_available: bool
+    connection_message: str
     def connect(self) -> None: ...
     def resources(self) -> tuple[Resource, ...]: ...
     def preview(self, resource: Resource, rules: tuple[str, ...]) -> tuple[RuleResult, ...]: ...
@@ -26,17 +29,20 @@ class AuditService:
 
     def connection(self) -> dict[str, str]:
         self._provider.connect()
-        return {'mode': 'demo', 'status': 'ok', 'message': 'Simulated connection; no cloud contacted'}
+        return {'mode': self._provider.mode, 'status': 'ok',
+                'message': self._provider.connection_message}
 
     def resources(self) -> tuple[Resource, ...]:
         return self._provider.resources()
 
     def audit(self, resource_id: str, rules: tuple[str, ...]) -> AuditReport:
+        if not self._provider.audit_available:
+            raise AuditError('Cloud security audit is not implemented yet')
         resource = next((item for item in self.resources() if item.id == resource_id), None)
         if resource is None:
-            raise AuditError('Resource not found in demo profile')
+            raise AuditError('Resource not found in selected profile')
         results = self._provider.preview(resource, rules)
-        report = AuditReport(uuid4().hex, 'demo', resource, results)
+        report = AuditReport(uuid4().hex, self._provider.mode, resource, results)
         self._reports.save(report)
         return report
 
