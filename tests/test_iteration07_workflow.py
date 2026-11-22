@@ -17,6 +17,7 @@ from cloud_audit.domain.snapshot import CollectionOptions
 from cloud_audit.infrastructure.audit_policy import parse_audit_policy
 from cloud_audit.infrastructure.configuration import ConfigurationError
 from cloud_audit.infrastructure.reports import JsonReportRepository
+from cloud_audit.infrastructure.history import SqliteReportRepository
 from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
 from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
 from test_configuration_snapshot import configured_client, failure
@@ -69,7 +70,7 @@ class Iteration07WorkflowTests(unittest.TestCase):
             data = json.loads(result.stdout)
             self.assertEqual([x['rule_id'] for x in data['results']], list(NEW_RULES))
             self.assertEqual(data['results'][-1]['status'], 'confirmed_violation')
-            stored = reports.get(data['id'])
+            stored = SqliteReportRepository(root / 'data' / 'audit.sqlite3').get(data['id'])
             self.assertEqual(stored.policy.trusted_project_ids, ('inside',))
 
 

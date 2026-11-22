@@ -10,6 +10,7 @@ from cloud_audit.cli import main
 from cloud_audit.infrastructure.s3 import S3Provider
 from cloud_audit.infrastructure.anonymous import AnonymousProber
 from cloud_audit.infrastructure.reports import JsonReportRepository
+from cloud_audit.infrastructure.history import SqliteReportRepository
 from pathlib import Path
 from test_configuration_snapshot import configured_client, failure
 
@@ -34,7 +35,7 @@ class AccessCliTests(unittest.TestCase):
             report = json.loads(output.getvalue())
             self.assertEqual(len(report['results']), 8)
             self.assertEqual(report['object_keys'], ['sample.txt'])
-            self.assertEqual(JsonReportRepository(Path(directory) / 'data').get(report['id']).results[1].status,
+            self.assertEqual(SqliteReportRepository(Path(directory) / 'data' / 'audit.sqlite3').get(report['id']).results[1].status,
                              'confirmed_violation')
             anon.put_object.assert_not_called()
             signed.put_object.assert_not_called()

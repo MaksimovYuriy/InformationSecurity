@@ -10,10 +10,14 @@ from cloud_audit.domain.snapshot import CollectionOptions
 
 
 def decode_security_report(data: dict) -> SecurityReport:
-    if (type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or data['mode'] != 'vk'
+    if (type(data['schema_version']) is not int or data['schema_version'] not in (1, 2, 3) or data['mode'] != 'vk'
             or not re.fullmatch(r'[0-9a-f]{32}', data['snapshot_id'])
             or data['scope'] not in {'bucket_configuration_only', 'bucket_and_selected_objects'}
             or data['collection_status'] not in {'partial', 'complete_for_scope'}):
+        raise ValueError
+    if data['schema_version'] == 3 and (not isinstance(data.get('ruleset_version'), str) or not data['ruleset_version']):
+        raise ValueError
+    if data.get('resource_namespace') is not None and not isinstance(data['resource_namespace'], str):
         raise ValueError
     keys = tuple(data.get('object_keys', ()))
     CollectionOptions(keys)

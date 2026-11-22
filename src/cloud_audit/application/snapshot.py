@@ -32,9 +32,11 @@ class SnapshotService:
         observations = self._collector.collect(resource, options) if options else self._collector.collect(resource)
         status = 'complete_for_scope' if collection_complete(observations) else 'partial'
         keys = options.object_keys if options else ()
+        namespace = getattr(self._collector, 'namespace', None)
+        namespace = namespace if isinstance(namespace, str) else None
         snapshot = ConfigurationSnapshot(uuid4().hex, 2 if options else 1, self._collector.mode, resource, started_at,
                                          'bucket_and_selected_objects' if keys else 'bucket_configuration_only',
                                          collection_limitations(keys) if options else LIMITATIONS,
-                                         status, observations, keys)
+                                         status, observations, keys, namespace)
         self._repository.save(snapshot)
         return snapshot

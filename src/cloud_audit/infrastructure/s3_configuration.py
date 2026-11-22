@@ -140,6 +140,7 @@ COLLECTION_SPECS = (
 
 class S3ConfigurationCollector:
     mode = 'vk'
+    namespace = None
     def __init__(self, client):
         self._client = client
 

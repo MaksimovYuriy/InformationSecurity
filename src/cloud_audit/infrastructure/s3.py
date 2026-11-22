@@ -17,9 +17,10 @@ class S3Provider:
     audit_available = False
     connection_message = 'Authenticated bucket listing succeeded; security not assessed'
 
-    def __init__(self, client, anonymous_prober=None):
+    def __init__(self, client, anonymous_prober=None, namespace=None):
         self._client = client
         self._anonymous_prober = anonymous_prober
+        self.namespace = namespace
 
     @classmethod
     def from_settings(cls, settings: S3Settings):
@@ -33,7 +34,7 @@ class S3Provider:
                           retries={'mode': 'standard', 'total_max_attempts': 3},
                           s3={'addressing_style': 'path'}))
         from cloud_audit.infrastructure.anonymous import AnonymousProber
-        return cls(client, AnonymousProber.from_settings(settings, client))
+        return cls(client, AnonymousProber.from_settings(settings, client), settings.endpoint_url.rstrip('/').lower())
 
     def connect(self) -> None:
         self.resources()

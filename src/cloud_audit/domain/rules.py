@@ -8,6 +8,7 @@ from cloud_audit.domain.snapshot import ConfigurationSnapshot
 
 FINDING_STATUSES = frozenset({'confirmed_violation', 'potential_risk', 'passed',
                               'insufficient_data', 'not_applicable'})
+CURRENT_RULESET_VERSION = '1'
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,8 @@ class SecurityReport:
     policy: AuditPolicy
     results: tuple[Finding, ...]
     object_keys: tuple[str, ...] = ()
+    ruleset_version: str | None = None
+    resource_namespace: str | None = None
 
 
 class SecurityRule(Protocol):

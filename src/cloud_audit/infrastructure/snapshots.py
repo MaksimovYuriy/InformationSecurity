@@ -39,6 +39,8 @@ class JsonSnapshotRepository:
                     or data['scope'] not in {'bucket_configuration_only', 'bucket_and_selected_objects'}):
                 raise ValueError
             keys = tuple(data.get('object_keys', ()))
+            if data.get('resource_namespace') is not None and not isinstance(data['resource_namespace'], str):
+                raise ValueError
             CollectionOptions(keys)
             version = data['schema_version']
             if version == 1 and (keys or data['scope'] != 'bucket_configuration_only'):

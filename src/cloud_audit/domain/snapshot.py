@@ -62,3 +62,4 @@ class ConfigurationSnapshot:
     collection_status: str
     observations: tuple[ConfigurationObservation, ...]
     object_keys: tuple[str, ...] = ()
+    resource_namespace: str | None = None

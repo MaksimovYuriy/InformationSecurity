@@ -17,6 +17,7 @@ from cloud_audit.infrastructure.configuration import load_s3_settings
 from cloud_audit.infrastructure.s3 import S3Provider
 from cloud_audit.infrastructure.snapshots import JsonSnapshotRepository
 from cloud_audit.infrastructure.reports import JsonReportRepository
+from cloud_audit.infrastructure.history import SqliteReportRepository
 from cloud_audit.infrastructure.storage import LocalStateStorage
 
 
@@ -32,7 +33,7 @@ def main():
     state = Path('.state')
     LocalStateStorage(state).prepare()
     snapshots = JsonSnapshotRepository(state / 'data' / 'snapshots')
-    reports = JsonReportRepository(state / 'data')
+    reports = SqliteReportRepository(state / 'data' / 'audit.sqlite3', legacy=JsonReportRepository(state / 'data'))
     service = SecurityAuditService(RuleEngine(default_rules()), reports)
     owned = False
     successful = False

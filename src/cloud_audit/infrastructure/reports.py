@@ -11,6 +11,21 @@ from cloud_audit.domain.rules import SecurityReport
 from cloud_audit.infrastructure.security_report_schema import decode_security_report
 
 
+def decode_report(data: dict, report_id: str) -> AuditReport | SecurityReport:
+    try:
+        if data['id'] != report_id:
+            raise ValueError
+        if data.get('mode') == 'vk':
+            return decode_security_report(data)
+        report = AuditReport(data['id'], data['mode'], Resource(**data['resource']),
+                             tuple(RuleResult(**item) for item in data['results']))
+        if report.mode != 'demo':
+            raise ValueError
+        return report
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        raise AuditError('Invalid saved report') from None
+
+
 class JsonReportRepository:
     def __init__(self, directory: Path):
         self._directory = directory
@@ -37,16 +52,12 @@ class JsonReportRepository:
         path = self._path(report_id)
         try:
             data = json.loads(path.read_text(encoding='utf-8'))
-            if data.get('mode') == 'vk':
-                if data['id'] != report_id:
-                    raise ValueError
-                return decode_security_report(data)
-            report = AuditReport(data['id'], data['mode'], Resource(**data['resource']),
-                                 tuple(RuleResult(**item) for item in data['results']))
-            if report.id != report_id or report.mode != 'demo':
-                raise ValueError
-            return report
+            return decode_report(data, report_id)
         except FileNotFoundError:
             raise AuditError('Report not found') from None
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             raise AuditError('Invalid saved report') from None
+
+    def identifiers(self) -> tuple[str, ...]:
+        return tuple(sorted(path.stem for path in self._directory.glob('*.json')
+                            if re.fullmatch(r'[0-9a-f]{32}', path.stem) and not path.is_symlink()))
