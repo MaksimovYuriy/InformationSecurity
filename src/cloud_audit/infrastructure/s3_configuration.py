@@ -2,6 +2,7 @@
 import json
 
 from botocore.exceptions import BotoCoreError, ClientError
+from botocore.parsers import ResponseParserError
 
 from cloud_audit.application.audit import AuditError
 from cloud_audit.domain.audit import Resource
@@ -177,7 +178,7 @@ class S3ConfigurationCollector:
                 status, reason = 'error', 'rate_limit'
             else:
                 status, reason = 'error', 'service_error'
-        except BotoCoreError:
+        except (BotoCoreError, ResponseParserError):
             status, reason = 'error', 'sdk_or_network_error'
         except (ValueError, TypeError, KeyError, IndexError):
             status, reason = 'error', 'invalid_response'

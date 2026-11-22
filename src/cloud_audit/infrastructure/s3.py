@@ -4,6 +4,7 @@ import logging
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from botocore.parsers import ResponseParserError
 
 from cloud_audit.application.audit import AuditError
 from cloud_audit.domain.audit import Resource
@@ -71,7 +72,7 @@ class S3Provider:
             else:
                 message = 'Cloud service request failed'
             raise AuditError(message) from None
-        except BotoCoreError:
+        except (BotoCoreError, ResponseParserError):
             raise AuditError('Cloud SDK or network error; check connectivity and endpoint') from None
         except (KeyError, TypeError, ValueError):
             raise AuditError('Invalid cloud response or pagination') from None

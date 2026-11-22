@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from botocore.exceptions import ClientError, BotoCoreError
+from botocore.parsers import ResponseParserError
 from cloud_audit.application.rule_registry import default_rules
 from cloud_audit.application.rules import RuleEngine
 from cloud_audit.application.security_audit import SecurityAuditService
@@ -70,7 +71,7 @@ def main():
         if any(value != 'passed' for value in closed.values()) or any(value != 'denied' for value in probes.values()):
             raise ValueError('Closure did not match expectations')
         successful = True
-    except (ClientError, BotoCoreError, ValueError, OSError):
+    except (ClientError, BotoCoreError, ResponseParserError, ValueError, OSError):
         print('Fixture verification failed; raw cloud details withheld', flush=True)
     finally:
         cleanup_ok = True
@@ -90,7 +91,7 @@ def main():
                     if error.response.get('Error', {}).get('Code') not in {
                             'NoSuchBucketPolicy', 'NoSuchKey', 'NoSuchBucket', 'NotFound'}:
                         cleanup_ok = False
-                except (BotoCoreError, OSError):
+                except (ResponseParserError, BotoCoreError, OSError):
                     cleanup_ok = False
         summary = {'success': successful, 'cleanup_ok': cleanup_ok, 'fixture_bucket': bucket,
                    'stage_count': len(stages)}

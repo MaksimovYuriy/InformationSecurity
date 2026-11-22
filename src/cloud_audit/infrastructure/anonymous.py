@@ -7,6 +7,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from botocore.parsers import ResponseParserError
 
 from cloud_audit.domain.snapshot import ConfigurationObservation
 
@@ -44,7 +45,7 @@ class AnonymousProber:
             code = error.response.get('Error', {}).get('Code')
             outcome = ('denied' if status_code == 403 and code in {'AccessDenied', '403'} else
                        'not_found' if code in {'NoSuchKey', 'NoSuchBucket', 'NotFound'} else 'error')
-        except (BotoCoreError, OSError, ValueError, TypeError):
+        except (ResponseParserError, BotoCoreError, OSError, ValueError, TypeError):
             outcome = 'error'
         data = {'outcome': outcome, 'http_status': status_code,
                 'checked_at': datetime.now(timezone.utc).isoformat()}
@@ -86,7 +87,7 @@ class AnonymousProber:
                     call = lambda: self._anonymous.put_object(Bucket=bucket, Key=key,
                         Body=b'cloud-audit disposable probe\n', IfNoneMatch='*')
                 outcome = self._probe(f'anonymous_{operation}', f'anonymous_{"put" if operation == "write" else "delete"}_object', call, key)
-            except (BotoCoreError, ClientError, OSError, ValueError, TypeError):
+            except (ResponseParserError, BotoCoreError, ClientError, OSError, ValueError, TypeError):
                 outcome = ConfigurationObservation(f'anonymous_{operation}',
                     f'anonymous_{"put" if operation == "write" else "delete"}_object', 'available',
                     {'outcome': 'error', 'http_status': None, 'object_key': key,
@@ -100,7 +101,7 @@ class AnonymousProber:
                     for version in (*page.get('Versions', []), *page.get('DeleteMarkers', [])):
                         if version.get('Key') == key:
                             self._fixtures.delete_object(Bucket=bucket, Key=key, VersionId=version['VersionId'])
-                except (BotoCoreError, ClientError, OSError, ValueError, KeyError, TypeError):
+                except (ResponseParserError, BotoCoreError, ClientError, OSError, ValueError, KeyError, TypeError):
                     cleanup_ok = False
             if not cleanup_ok:
                 # Keep successful access evidence, but explicitly report cleanup failure.

@@ -47,3 +47,23 @@ class ReviewRegressionTests(unittest.TestCase):
             path.write_text(json.dumps(asdict(data)))
             with self.assertRaises(AuditError):
                 JsonSnapshotRepository(Path(directory)).get(data.id)
+
+
+class MalformedSdkResponseTests(unittest.TestCase):
+    def test_invalid_xml_is_a_sanitized_error_for_all_cloud_read_paths(self):
+        from botocore.parsers import ResponseParserError
+        from cloud_audit.domain.audit import Resource
+        from cloud_audit.infrastructure.anonymous import AnonymousProber
+        from cloud_audit.infrastructure.s3 import S3Provider
+        from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
+        from test_configuration_snapshot import configured_client
+        client = configured_client()
+        client.get_bucket_acl.side_effect = ResponseParserError('SECRET raw XML')
+        fields = {x.name: x for x in S3ConfigurationCollector(client).collect(Resource('lab', 'lab'))}
+        self.assertEqual(fields['bucket_acl'].status, 'error')
+        client.list_objects_v2.side_effect = ResponseParserError('SECRET raw XML')
+        self.assertEqual(AnonymousProber(client).read_only('lab', ())[0].data['outcome'], 'error')
+        client.list_buckets.side_effect = ResponseParserError('SECRET raw XML')
+        with self.assertRaises(AuditError) as caught:
+            S3Provider(client).resources()
+        self.assertNotIn('SECRET', str(caught.exception))
