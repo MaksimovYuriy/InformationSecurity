@@ -13,6 +13,7 @@ from cloud_audit.domain.audit import Resource
 from cloud_audit.domain.snapshot import (
     ConfigurationObservation, ConfigurationSnapshot, CONFIGURATION_FIELDS,
     LIMITATIONS, OBSERVATION_STATUSES,
+    CollectionOptions, collection_limitations, collection_complete,
 )
 from cloud_audit.infrastructure.snapshot_schema import validate_observation
 
@@ -33,30 +34,41 @@ class JsonSnapshotRepository:
     def _decode(self, raw: str, expected_id: str) -> ConfigurationSnapshot:
         try:
             data = json.loads(raw)
-            if (type(data['schema_version']) is not int or data['schema_version'] != 1
+            if (type(data['schema_version']) is not int or data['schema_version'] not in (1, 2)
                     or data['id'] != expected_id or data['provider'] != 'vk'
-                    or data['scope'] != 'bucket_configuration_only'
-                    or data['limitations'] != list(LIMITATIONS)):
+                    or data['scope'] not in {'bucket_configuration_only', 'bucket_and_selected_objects'}):
+                raise ValueError
+            keys = tuple(data.get('object_keys', ()))
+            CollectionOptions(keys)
+            version = data['schema_version']
+            if version == 1 and (keys or data['scope'] != 'bucket_configuration_only'):
+                raise ValueError
+            if version == 2 and data['scope'] != ('bucket_and_selected_objects' if keys else 'bucket_configuration_only'):
+                raise ValueError
+            if data['limitations'] != list(LIMITATIONS if version == 1 else collection_limitations(keys)):
                 raise ValueError
             resource = Resource(**data['resource'])
             if not all(isinstance(value, str) and value for value in (resource.id, resource.name)):
                 raise ValueError
             collected_at = datetime.fromisoformat(data['collected_at'])
-            if collected_at.tzinfo is None:
+            if collected_at.tzinfo is None or collected_at > self._clock() + timedelta(minutes=5):
                 raise ValueError
             observations = tuple(ConfigurationObservation(**item) for item in data['observations'])
-            if len(observations) != len(CONFIGURATION_FIELDS) or {x.name for x in observations} != CONFIGURATION_FIELDS:
+            names = {x.name for x in observations}
+            required = CONFIGURATION_FIELDS | {f'object_acl:{key}' for key in keys}
+            allowed = required | ({'anonymous_list', 'anonymous_write', 'anonymous_delete'} |
+                                  {f'anonymous_read:{key}' for key in keys} if version == 2 else set())
+            if len(observations) != len(names) or not required <= names or not names <= allowed:
                 raise ValueError
             for item in observations:
                 if item.status not in OBSERVATION_STATUSES or not isinstance(item.source, str):
                     raise ValueError
                 validate_observation(item)
-            expected_status = ('complete_for_scope' if all(x.status in {'available', 'absent'}
-                                                           for x in observations) else 'partial')
+            expected_status = 'complete_for_scope' if collection_complete(observations) else 'partial'
             if data['collection_status'] != expected_status:
                 raise ValueError
             return ConfigurationSnapshot(**(data | {'resource': resource,
-                'limitations': tuple(data['limitations']), 'observations': observations}))
+                'limitations': tuple(data['limitations']), 'observations': observations, 'object_keys': keys}))
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             raise AuditError('Invalid saved configuration snapshot') from None
 

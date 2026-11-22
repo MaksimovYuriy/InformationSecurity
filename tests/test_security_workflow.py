@@ -62,7 +62,7 @@ class SecurityWorkflowTests(unittest.TestCase):
             env.pop('AWS_ACCESS_KEY_ID', None)
             env.pop('AWS_SECRET_ACCESS_KEY', None)
             result = subprocess.run([sys.executable, '-m', 'cloud_audit', 'audit', '--profile', 'vk',
-                                     '--snapshot', snapshot.id], capture_output=True, text=True, env=env)
+                                     '--snapshot', snapshot.id, '--rules', 'bucket-versioning-enabled'], capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stderr)
             saved = json.loads(result.stdout)
             self.assertEqual(saved['results'][0]['status'], 'confirmed_violation')
@@ -130,7 +130,7 @@ class PolicyCliTests(unittest.TestCase):
                     client.get_bucket_versioning.side_effect = failure('AccessDenied')
                 snapshot = SnapshotService(S3ConfigurationCollector(client), repo).collect('lab')
                 result = subprocess.run([sys.executable, '-m', 'cloud_audit', 'audit', '--profile', 'vk',
-                    '--snapshot', snapshot.id, '--policy', str(policy)], env=env, capture_output=True, text=True)
+                    '--snapshot', snapshot.id, '--policy', str(policy), '--rules', 'bucket-versioning-enabled'], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 3 if unavailable else 0, result.stderr)
                 finding = json.loads(result.stdout)['results'][0]
                 self.assertEqual(finding['status'], 'insufficient_data' if unavailable else 'confirmed_violation')

@@ -62,6 +62,7 @@ class Finding:
     recommendation: str
     verification: str
     exception_reason: str | None = None
+    limitations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ class SecurityReport:
     evaluation_status: str
     policy: AuditPolicy
     results: tuple[Finding, ...]
+    object_keys: tuple[str, ...] = ()
 
 
 class SecurityRule(Protocol):
@@ -102,8 +104,9 @@ class RiskModel:
         likelihood = 3 if exposure == 'public_confirmed' else 2
         score = impact * likelihood
         level = 'critical' if score == 9 else 'high' if score >= 6 else 'medium' if score >= 3 else 'low'
+        measured = ('An unsigned request confirms only the recorded operation and target. '
+                    if exposure == 'public_confirmed' else 'Actual granted permissions are not measured. ')
         rationale = (f'Estimated ordinal risk: likelihood={likelihood}, impact={impact}; '
                      f'data_sensitivity={sensitivity}, exposure={exposure}. '
-                     'Affected operations describe the threat, not measured granted permissions. '
-                     'Other recovery mechanisms and actual permissions are not assessed.')
+                     + measured + 'Other targets and recovery mechanisms are not assessed.')
         return RiskAssessment(level, score, likelihood, impact, rationale, operations)

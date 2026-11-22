@@ -7,7 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from cloud_audit.application.audit import AuditError
 from cloud_audit.domain.audit import Resource
-from cloud_audit.domain.snapshot import ConfigurationObservation
+from cloud_audit.domain.snapshot import ConfigurationObservation, CollectionOptions
 from cloud_audit.infrastructure.configuration import S3Settings
 
 
@@ -16,8 +16,9 @@ class S3Provider:
     audit_available = False
     connection_message = 'Authenticated bucket listing succeeded; security not assessed'
 
-    def __init__(self, client):
+    def __init__(self, client, anonymous_prober=None):
         self._client = client
+        self._anonymous_prober = anonymous_prober
 
     @classmethod
     def from_settings(cls, settings: S3Settings):
@@ -30,7 +31,8 @@ class S3Provider:
             config=Config(signature_version='s3v4', connect_timeout=5, read_timeout=10,
                           retries={'mode': 'standard', 'total_max_attempts': 3},
                           s3={'addressing_style': 'path'}))
-        return cls(client)
+        from cloud_audit.infrastructure.anonymous import AnonymousProber
+        return cls(client, AnonymousProber.from_settings(settings, client))
 
     def connect(self) -> None:
         self.resources()
@@ -78,6 +80,17 @@ class S3Provider:
     def preview(self, resource, rules):
         raise AuditError('Cloud security audit is not implemented yet')
 
-    def collect(self, resource: Resource) -> tuple[ConfigurationObservation, ...]:
+    def collect(self, resource: Resource, options: CollectionOptions | None = None) -> tuple[ConfigurationObservation, ...]:
         from cloud_audit.infrastructure.s3_configuration import S3ConfigurationCollector
-        return S3ConfigurationCollector(self._client).collect(resource)
+        result = S3ConfigurationCollector(self._client).collect(resource, options)
+        if options and options.probe_anonymous:
+            if self._anonymous_prober is None:
+                raise AuditError('Anonymous probe adapter is not configured')
+            if options.allow_write_probes:
+                lock = next(x for x in result if x.name == 'object_lock')
+                if lock.status != 'absent':
+                    raise AuditError('Write probes require confirmed absence of Object Lock for cleanup')
+            result += self._anonymous_prober.read_only(resource.id, options.object_keys)
+            if options.allow_write_probes:
+                result += self._anonymous_prober.mutations(resource.id, enabled=True)
+        return result

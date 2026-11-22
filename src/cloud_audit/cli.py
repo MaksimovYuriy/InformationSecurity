@@ -11,7 +11,8 @@ from cloud_audit.application.environment import EnvironmentService
 from cloud_audit.application.snapshot import SnapshotService
 from cloud_audit.application.rules import RuleEngine
 from cloud_audit.application.security_audit import SecurityAuditService
-from cloud_audit.domain.versioning import VersioningRule
+from cloud_audit.application.rule_registry import default_rules
+from cloud_audit.domain.snapshot import CollectionOptions
 from cloud_audit.infrastructure.audit_policy import load_audit_policy
 from cloud_audit.infrastructure.configuration import ConfigurationError, load_settings, load_s3_settings
 from cloud_audit.infrastructure.demo import DemoProvider
@@ -39,6 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
             target.add_argument('--snapshot')
             command.add_argument('--rules', nargs='+', default=[])
             command.add_argument('--policy', type=Path)
+        if name in ('audit', 'collect'):
+            command.add_argument('--objects', nargs='+', default=[])
+            command.add_argument('--probe-anonymous', action='store_true')
+            command.add_argument('--allow-write-probes', action='store_true')
         if name == 'report':
             command.add_argument('report_id')
         if name == 'snapshot':
@@ -50,6 +55,15 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
+        options = None
+        if args.command in ('audit', 'collect') and (args.objects or args.probe_anonymous or args.allow_write_probes):
+            if (args.profile != 'vk' or getattr(args, 'snapshot', None)):
+                raise AuditError('Object selection and probes require a live VK resource')
+            try:
+                options = CollectionOptions(tuple(dict.fromkeys(args.objects)), args.probe_anonymous,
+                                            args.allow_write_probes)
+            except ValueError:
+                raise AuditError('Invalid probe options: at most 20 explicit keys; write probes require --probe-anonymous') from None
         settings = load_settings(os.environ)
         logging.basicConfig(level=settings.log_level, format='%(levelname)s %(message)s')
         environment = EnvironmentService(settings, LocalStateStorage(settings.state_dir)).check()
@@ -72,15 +86,15 @@ def main() -> int:
                     raise AuditError('Snapshot and policy options require --profile vk')
                 output = asdict(service.audit(args.resource, tuple(args.rules)))
             else:
-                engine = RuleEngine((VersioningRule(),))
+                engine = RuleEngine(default_rules())
                 engine.select(tuple(args.rules))
                 policy = load_audit_policy(args.policy)
                 snapshot = (snapshots.get(args.snapshot) if args.snapshot
-                            else SnapshotService(provider, snapshots).collect(args.resource))
+                            else SnapshotService(provider, snapshots).collect(args.resource, options))
                 output = asdict(SecurityAuditService(engine, JsonReportRepository(
                     settings.state_dir / 'data')).audit(snapshot, policy, tuple(args.rules)))
         elif args.command == 'collect':
-            output = asdict(SnapshotService(provider, snapshots).collect(args.resource))
+            output = asdict(SnapshotService(provider, snapshots).collect(args.resource, options))
         elif args.command == 'snapshot':
             output = asdict(snapshots.get(args.snapshot_id))
         else:

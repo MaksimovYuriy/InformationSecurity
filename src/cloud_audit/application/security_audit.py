@@ -20,9 +20,14 @@ class SecurityAuditService:
               selected: tuple[str, ...] = ()) -> SecurityReport:
         results = self._engine.evaluate(snapshot, policy, selected)
         limitations = tuple(x for x in snapshot.limitations if x != 'security_not_assessed')
-        report = SecurityReport(uuid4().hex, 1, snapshot.provider, snapshot.resource,
+        limitations = tuple(dict.fromkeys((*limitations, *(value for result in results for value in result.limitations))))
+        cleanup_failed = any(isinstance(item.data, dict) and item.data.get('cleanup_failed') for item in snapshot.observations)
+        if cleanup_failed:
+            limitations += ('probe_cleanup_failed',)
+        report = SecurityReport(uuid4().hex, 2, snapshot.provider, snapshot.resource,
             snapshot.id, snapshot.collected_at, datetime.now(timezone.utc).isoformat(),
             snapshot.scope, (*limitations, 'only_selected_rules_evaluated'), snapshot.collection_status,
-            'incomplete' if any(x.status == 'insufficient_data' for x in results) else 'complete', policy, results)
+            'incomplete' if cleanup_failed or any(x.status == 'insufficient_data' for x in results) else 'complete',
+            policy, results, snapshot.object_keys)
         self._reports.save(report)
         return report

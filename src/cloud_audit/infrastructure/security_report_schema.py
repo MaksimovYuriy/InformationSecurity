@@ -1,17 +1,23 @@
 """Reconstruction and consistency checks for version 1 security reports."""
 from datetime import datetime
+import json
 import re
 
 from cloud_audit.domain.audit import Resource
 from cloud_audit.domain.rules import Evidence, Finding, RiskAssessment, SecurityReport, FINDING_STATUSES
 from cloud_audit.infrastructure.audit_policy import parse_audit_policy
+from cloud_audit.domain.snapshot import CollectionOptions
 
 
 def decode_security_report(data: dict) -> SecurityReport:
-    if (type(data['schema_version']) is not int or data['schema_version'] != 1 or data['mode'] != 'vk'
+    if (type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or data['mode'] != 'vk'
             or not re.fullmatch(r'[0-9a-f]{32}', data['snapshot_id'])
-            or data['scope'] != 'bucket_configuration_only'
+            or data['scope'] not in {'bucket_configuration_only', 'bucket_and_selected_objects'}
             or data['collection_status'] not in {'partial', 'complete_for_scope'}):
+        raise ValueError
+    keys = tuple(data.get('object_keys', ()))
+    CollectionOptions(keys)
+    if data['scope'] != ('bucket_and_selected_objects' if keys else 'bucket_configuration_only'):
         raise ValueError
     for key in ('snapshot_collected_at', 'evaluated_at'):
         if datetime.fromisoformat(data[key]).tzinfo is None:
@@ -25,7 +31,10 @@ def decode_security_report(data: dict) -> SecurityReport:
     for item in data['results']:
         risk = RiskAssessment(**(item['risk'] | {'affected_operations': tuple(item['risk']['affected_operations'])}))
         evidence = tuple(Evidence(**value) for value in item['evidence'])
-        finding = Finding(**(item | {'risk': risk, 'evidence': evidence}))
+        finding = Finding(**(item | {'risk': risk, 'evidence': evidence,
+                                    'limitations': tuple(item.get('limitations', ())) }))
+        if any(not isinstance(x, str) for x in finding.limitations):
+            raise ValueError
         if not evidence and finding.status != 'not_applicable':
             raise ValueError
         if finding.rule_id in seen or not isinstance(finding.rule_id, str) or finding.status not in FINDING_STATUSES:
@@ -57,13 +66,40 @@ def decode_security_report(data: dict) -> SecurityReport:
             if (not all(isinstance(x, str) for x in (proof.field, proof.source, proof.observation_status))
                     or proof.value is not None and not isinstance(proof.value, str)):
                 raise ValueError
+        if finding.rule_id == 'bucket-versioning-enabled' and finding.status not in {'insufficient_data', 'not_applicable'}:
+            values = [proof.value for proof in evidence
+                      if proof.field == 'versioning.status' and proof.source == 'get_bucket_versioning'
+                      and proof.observation_status == 'available']
+            if len(values) != 1 or values[0] not in {'Enabled', 'Disabled', 'Suspended'}:
+                raise ValueError
+            expected = ('passed' if values[0] == 'Enabled' else 'confirmed_violation'
+                        if 'versioning' in policy.required_controls else 'potential_risk')
+            if finding.status != expected:
+                raise ValueError
+        if finding.rule_id in {'anonymous-read', 'anonymous-list', 'anonymous-write', 'anonymous-delete'}:
+            operation = finding.rule_id.removeprefix('anonymous-')
+            source = {'read': 'anonymous_get_object', 'list': 'anonymous_list_objects_v2',
+                      'write': 'anonymous_put_object', 'delete': 'anonymous_delete_object'}[operation]
+            positive = False
+            for proof in evidence:
+                if proof.source != source or proof.observation_status != 'available':
+                    continue
+                value = json.loads(proof.value)
+                code = value.get('http_status')
+                if value.get('outcome') == 'allowed' and type(code) is int and 200 <= code < 300:
+                    if operation == 'read' and value.get('object_key') not in keys:
+                        raise ValueError
+                    positive = True
+            if (finding.status == 'confirmed_violation') != positive:
+                raise ValueError
         findings.append(finding)
     if not findings:
         raise ValueError
-    expected = 'incomplete' if any(x.status == 'insufficient_data' for x in findings) else 'complete'
+    expected = ('incomplete' if 'probe_cleanup_failed' in data['limitations']
+                or any(x.status == 'insufficient_data' for x in findings) else 'complete')
     if data['evaluation_status'] != expected:
         raise ValueError
     if not isinstance(data['limitations'], list) or not all(isinstance(x, str) for x in data['limitations']):
         raise ValueError
     return SecurityReport(**(data | {'resource': resource, 'policy': policy,
-                                    'results': tuple(findings), 'limitations': tuple(data['limitations'])}))
+                                    'results': tuple(findings), 'limitations': tuple(data['limitations']), 'object_keys': keys}))

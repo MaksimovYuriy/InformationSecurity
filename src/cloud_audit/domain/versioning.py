@@ -12,7 +12,7 @@ class VersioningRule:
                     'repeat this rule. Test recovery separately on artificial objects.')
 
     def applicable(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> bool:
-        return snapshot.scope == 'bucket_configuration_only'
+        return snapshot.scope in {'bucket_configuration_only', 'bucket_and_selected_objects'}
 
     def evaluate(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> Finding:
         observation = next(item for item in snapshot.observations if item.name == 'versioning')

@@ -5,7 +5,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from cloud_audit.application.audit import AuditError
 from cloud_audit.domain.audit import Resource
-from cloud_audit.domain.snapshot import ConfigurationObservation
+from cloud_audit.domain.snapshot import ConfigurationObservation, CollectionOptions
 
 
 def require_mapping(value):
@@ -142,12 +142,17 @@ class S3ConfigurationCollector:
     def __init__(self, client):
         self._client = client
 
-    def collect(self, resource: Resource) -> tuple[ConfigurationObservation, ...]:
-        return tuple(self._read(resource.id, *spec) for spec in COLLECTION_SPECS)
+    def collect(self, resource: Resource, options: CollectionOptions | None = None) -> tuple[ConfigurationObservation, ...]:
+        result = tuple(self._read(resource.id, *spec) for spec in COLLECTION_SPECS)
+        if options:
+            result += tuple(self._read(resource.id, f'object_acl:{key}', 'get_object_acl', acl,
+                                       frozenset(), key=key) for key in options.object_keys)
+        return result
 
-    def _read(self, bucket, name, method, normalize, absence_codes):
+    def _read(self, bucket, name, method, normalize, absence_codes, key=None):
         try:
-            response = getattr(self._client, method)(Bucket=bucket)
+            response = getattr(self._client, method)(**({'Bucket': bucket, 'Key': key}
+                                                      if key is not None else {'Bucket': bucket}))
             require_mapping(response)
             data = normalize(response)
             # Reject non-JSON structures, including datetime and SDK objects.
@@ -160,7 +165,9 @@ class S3ConfigurationCollector:
                 raise AuditError('Cloud resource not found') from None
             if code in {'InvalidAccessKeyId', 'SignatureDoesNotMatch', 'ExpiredToken', 'InvalidToken'}:
                 raise AuditError('Cloud credentials rejected') from None
-            if code in absence_codes:
+            if key is not None and code in {'NoSuchKey', 'NotFound', '404'}:
+                status, reason = 'not_found', 'resource_not_found'
+            elif code in absence_codes:
                 status, reason = 'absent', 'not_configured'
             elif code in {'AccessDenied', '403', 'AllAccessDisabled'}:
                 status, reason = 'access_denied', 'permission_required'
