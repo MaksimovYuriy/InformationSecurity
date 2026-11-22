@@ -33,11 +33,11 @@ __version__ = '0.1.0'
 
 [Исходный файл](../src/cloud_audit/cli.py)
 
-Зависимости: `argparse`, `dataclasses`, `json`, `logging`, `os`, `pathlib`, `cloud_audit`, `cloud_audit.errors`, `cloud_audit.services.profiles`, `cloud_audit.services.environment`, `cloud_audit.services.snapshots`, `cloud_audit.rules.engine`, `cloud_audit.services.audit`, `cloud_audit.rules.registry`, `cloud_audit.models.snapshot`, `cloud_audit.models.history`, `cloud_audit.models.security`, `cloud_audit.services.history`, `cloud_audit.configuration.policy`, `cloud_audit.configuration.environment`, `cloud_audit.providers.demo`, `cloud_audit.storage.json_reports`, `cloud_audit.storage.state`, `cloud_audit.storage.snapshots`, `cloud_audit.storage.sqlite`, `cloud_audit.reports.formatting`.
+Зависимости: `argparse`, `dataclasses`, `json`, `logging`, `os`, `pathlib`, `cloud_audit`, `cloud_audit.errors`, `cloud_audit.services.profiles`, `cloud_audit.services.environment`, `cloud_audit.services.snapshots`, `cloud_audit.rules.engine`, `cloud_audit.services.audit`, `cloud_audit.rules.registry`, `cloud_audit.models.snapshot`, `cloud_audit.models.history`, `cloud_audit.models.security`, `cloud_audit.services.history`, `cloud_audit.configuration.policy`, `cloud_audit.configuration.dotenv`, `cloud_audit.configuration.environment`, `cloud_audit.providers.demo`, `cloud_audit.storage.json_reports`, `cloud_audit.storage.state`, `cloud_audit.storage.snapshots`, `cloud_audit.storage.sqlite`, `cloud_audit.reports.formatting`.
 
 ### Функция/метод `build_parser`
 
-[Определение](../src/cloud_audit/cli.py#L35)
+[Определение](../src/cloud_audit/cli.py#L36)
 
 Описывает команды, взаимоисключающий выбор ресурса/снимка, форматы, фильтры и флаги проб;
 --help/--version не требуют состояния.
@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser
 
 ### Функция/метод `main`
 
-[Определение](../src/cloud_audit/cli.py#L87)
+[Определение](../src/cloud_audit/cli.py#L91)
 
 Разбирает аргументы CLI, загружает настройки, собирает реализации интерфейсов, выполняет
 выбранную команду и возвращает 0/1/2/3; секреты не выводит.
@@ -62,6 +62,40 @@ def main() -> int
 Загрузка и строгая проверка конфигурации.
 
 [Исходный файл](../src/cloud_audit/configuration/__init__.py)
+
+## `src/cloud_audit/configuration/dotenv.py`
+
+Локальный .env как данные: без shell, подстановок и изменения окружения процесса.
+
+[Исходный файл](../src/cloud_audit/configuration/dotenv.py)
+
+Зависимости: `collections.abc`, `pathlib`, `re`, `cloud_audit.errors`.
+
+Поле/константа `MAX_BYTES`:
+
+```python
+MAX_BYTES = 64 * 1024
+```
+
+### Функция/метод `parse_value`
+
+[Определение](../src/cloud_audit/configuration/dotenv.py#L11)
+
+Читает однострочное значение, кавычки и комментарий; $ и backtick остаются обычным текстом.
+
+```python
+def parse_value(raw: str) -> str
+```
+
+### Функция/метод `load_environment`
+
+[Определение](../src/cloud_audit/configuration/dotenv.py#L38)
+
+Объединяет один выбранный файл с окружением; существующие переменные, включая пустые, приоритетны.
+
+```python
+def load_environment(environment: Mapping[str, str], path: Path | None=Path('.env'), *, required=False) -> dict[str, str]
+```
 
 ## `src/cloud_audit/configuration/environment.py`
 
@@ -3200,11 +3234,11 @@ def evaluate(self, snapshot: ConfigurationSnapshot, policy: AuditPolicy) -> Find
 
 [Исходный файл](../src/cloud_audit/scan_cli.py)
 
-Зависимости: `dataclasses`, `pathlib`, `os`, `cloud_audit.configuration.environment`, `cloud_audit.configuration.policy`, `cloud_audit.configuration.targets`, `cloud_audit.errors`, `cloud_audit.models.scanning`, `cloud_audit.providers.external`, `cloud_audit.providers.s3`, `cloud_audit.rules.engine`, `cloud_audit.rules.registry`, `cloud_audit.services.audit`, `cloud_audit.services.scanning`, `cloud_audit.services.snapshots`, `cloud_audit.storage.scans`.
+Зависимости: `dataclasses`, `pathlib`, `cloud_audit.configuration.environment`, `cloud_audit.configuration.policy`, `cloud_audit.configuration.targets`, `cloud_audit.errors`, `cloud_audit.models.scanning`, `cloud_audit.providers.external`, `cloud_audit.providers.s3`, `cloud_audit.rules.engine`, `cloud_audit.rules.registry`, `cloud_audit.services.audit`, `cloud_audit.services.scanning`, `cloud_audit.services.snapshots`, `cloud_audit.storage.scans`.
 
 ### Функция/метод `add_scan_commands`
 
-[Определение](../src/cloud_audit/scan_cli.py#L21)
+[Определение](../src/cloud_audit/scan_cli.py#L20)
 
 Добавляет три взаимоисключающих источника целей и отдельное офлайн-чтение сводки.
 
@@ -3214,12 +3248,12 @@ def add_scan_commands(commands)
 
 ### Функция/метод `execute_scan`
 
-[Определение](../src/cloud_audit/scan_cli.py#L40)
+[Определение](../src/cloud_audit/scan_cli.py#L39)
 
 Создаёт signed-клиента только при полной паре ключей; внешний клиент всегда UNSIGNED.
 
 ```python
-def execute_scan(args, settings, reports, snapshots)
+def execute_scan(args, settings, reports, snapshots, configuration)
 ```
 
 ## `src/cloud_audit/services/__init__.py`
@@ -4155,11 +4189,11 @@ Isolated VK Cloud read/list fixture. Creates only artificial data; always attemp
 
 [Исходный файл](../scripts/verify_public_access.py)
 
-Зависимости: `argparse`, `json`, `os`, `pathlib`, `uuid`, `time`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.rules.registry`, `cloud_audit.rules.engine`, `cloud_audit.services.audit`, `cloud_audit.services.snapshots`, `cloud_audit.models.security`, `cloud_audit.models.snapshot`, `cloud_audit.configuration.environment`, `cloud_audit.providers.s3`, `cloud_audit.storage.snapshots`, `cloud_audit.storage.json_reports`, `cloud_audit.storage.sqlite`, `cloud_audit.storage.state`.
+Зависимости: `argparse`, `json`, `os`, `pathlib`, `uuid`, `time`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.rules.registry`, `cloud_audit.rules.engine`, `cloud_audit.services.audit`, `cloud_audit.services.snapshots`, `cloud_audit.models.security`, `cloud_audit.models.snapshot`, `cloud_audit.configuration.environment`, `cloud_audit.configuration.dotenv`, `cloud_audit.providers.s3`, `cloud_audit.storage.snapshots`, `cloud_audit.storage.json_reports`, `cloud_audit.storage.sqlite`, `cloud_audit.storage.state`.
 
 ### Функция/метод `main`
 
-[Определение](../scripts/verify_public_access.py#L25)
+[Определение](../scripts/verify_public_access.py#L26)
 
 Создаёт только новый искусственный стенд, проверяет private/public/private и всегда пытается удалить созданные ресурсы; возвращает 0 либо 2.
 
@@ -4169,7 +4203,7 @@ def main()
 
 ### Функция/метод `main.run_stage`
 
-[Определение](../scripts/verify_public_access.py#L43)
+[Определение](../scripts/verify_public_access.py#L44)
 
 Собирает свежий снимок с unsigned read/list, выполняет четыре анонимных правила и сохраняет безопасную сводку стадии.
 
@@ -4179,7 +4213,7 @@ def run_stage(name)
 
 ### Функция/метод `main.verify_stage`
 
-[Определение](../scripts/verify_public_access.py#L55)
+[Определение](../scripts/verify_public_access.py#L56)
 
 Собирает до пяти свежих наблюдений с паузой секунду; сохраняет каждую попытку и не подменяет ожидаемое состояние фактическим.
 
@@ -4193,7 +4227,7 @@ def verify_stage(name, opened=False)
 
 [Исходный файл](../scripts/verify_staged_scan.py)
 
-Зависимости: `argparse`, `json`, `os`, `pathlib`, `subprocess`, `sys`, `time`, `uuid`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.configuration.environment`, `cloud_audit.providers.s3`, `cloud_audit.reports.formatting`, `cloud_audit.storage.state`.
+Зависимости: `argparse`, `json`, `os`, `pathlib`, `subprocess`, `sys`, `time`, `uuid`, `botocore.exceptions`, `botocore.parsers`, `cloud_audit.configuration.environment`, `cloud_audit.configuration.dotenv`, `cloud_audit.providers.s3`, `cloud_audit.reports.formatting`, `cloud_audit.storage.state`.
 
 Поле/константа `ERRORS`:
 
@@ -4203,7 +4237,7 @@ ERRORS = (ClientError, BotoCoreError, ResponseParserError, OSError, ValueError, 
 
 ### Функция/метод `cleanup_fixture`
 
-[Определение](../scripts/verify_staged_scan.py#L22)
+[Определение](../scripts/verify_staged_scan.py#L23)
 
 Закрывает и удаляет только успешно созданные этим запуском бакеты, продолжая после ошибок.
 
@@ -4213,7 +4247,7 @@ def cleanup_fixture(client, owned)
 
 ### Функция/метод `public_phase_confirmed`
 
-[Определение](../scripts/verify_staged_scan.py#L48)
+[Определение](../scripts/verify_staged_scan.py#L49)
 
 Подтверждает существование каждой публичной операции по отдельным исходным запускам, не создавая объединённого фиктивного отчёта.
 
@@ -4223,7 +4257,7 @@ def public_phase_confirmed(attempts, names, key)
 
 ### Функция/метод `main`
 
-[Определение](../scripts/verify_staged_scan.py#L73)
+[Определение](../scripts/verify_staged_scan.py#L74)
 
 Создаёт отдельный стенд с явным флагом, запускает реальный CLI и записывает приватную сводку всех попыток.
 
@@ -4233,7 +4267,7 @@ def main()
 
 ### Функция/метод `main.invoke`
 
-[Определение](../scripts/verify_staged_scan.py#L90)
+[Определение](../scripts/verify_staged_scan.py#L92)
 
 Запускает публичный CLI отдельным процессом; сохраняет только контролируемые факты и идентификаторы.
 
@@ -4243,7 +4277,7 @@ def invoke(label, file, unsigned=False)
 
 ### Функция/метод `main.matches`
 
-[Определение](../scripts/verify_staged_scan.py#L110)
+[Определение](../scripts/verify_staged_scan.py#L112)
 
 Требует реальные исходы запросов, а не только наличие разрешающих настроек.
 
@@ -4253,7 +4287,7 @@ def matches(run, opened)
 
 ### Функция/метод `main.settled`
 
-[Определение](../scripts/verify_staged_scan.py#L131)
+[Определение](../scripts/verify_staged_scan.py#L133)
 
 Даёт политике до пяти ограниченных попыток применения, не скрывая неуспешные наблюдения.
 

@@ -1,31 +1,23 @@
 # Установка, запуск и демонстрация
 
-## Установка из исходников
+## Установка и обычный запуск
 
-Нужен Python 3.12+, доступ к пакетам при установке и к S3 endpoint при живом сканировании. Запуск из корня репозитория:
+Python 3.12+, из корня репозитория. Один раз установи пакет и закреплённые зависимости:
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-PYTHONPATH=src .venv/bin/python -m cloud_audit check
-PYTHONPATH=src .venv/bin/python -m cloud_audit --version
+.venv/bin/python -m pip install -r requirements.txt -e .
 ```
 
-`requirements.txt` фиксирует проверенные runtime-зависимости; `pyproject.toml` содержит метаданные пакета, setuptools и консольную точку входа cloud-audit. Документированный базовый сценарий работает из исходников, не требует предварительной установки самого пакета.
+Затем достаточно `./cloud-audit scan --buckets my-training-bucket`. Локальный launcher использует установленную `.venv/bin/cloud-audit` без активации и PYTHONPATH. При активированной `.venv` можно писать `cloud-audit ...`.
 
-Если `.env` ещё нет, создайте его из `.env.example`. Если ключи уже заполнены, переносите только необходимые новые поля, не перезаписывайте файл. Установите права `chmod 600 .env`, заполните AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY. Для загрузки доверенного shell-совместимого файла:
+Существующий `.env` читается автоматически из текущего каталога, не исполняется shell. Окружение процесса приоритетнее, включая пустые значения. Поддерживаются однострочные KEY=value, export, кавычки/комментарии; подстановок переменных и команд нет. Не перезаписывай файл с ключами копией примера. Файл из другого места задаётся глобальным `--env-file PATH`, отключение — `--no-env-file`; флаги идут перед командой. Help/version файл не читают. Неверный файл выдаёт код 2 без значений секретов.
 
-```bash
-set -a
-. ./.env
-set +a
-```
-
-Shell исполняет содержимое файла; приложение автоматически его не читает. Секреты не следует передавать в чат, Git, отчёты и командную строку. Endpoint/регион общие для всех бакетов. Для офлайн-команд и demo ключи не нужны.
+Пошаговый краткий сценарий — [MANUAL_TEST.md](MANUAL_TEST.md).
 
 ## Команды
 
-Общий вид: `PYTHONPATH=src .venv/bin/python -m cloud_audit COMMAND ...`. У каждой команды есть `--help`. По умолчанию вывод JSON.
+Общий вид: `./cloud-audit COMMAND ...` (или `cloud-audit` в активной `.venv`). У каждой команды есть `--help`. По умолчанию вывод JSON.
 
 | Команда | Назначение и параметры |
 |---|---|
@@ -51,15 +43,15 @@ Severity: none/unknown/low/medium/high/critical. Status: confirmed_violation/pot
 ## Реальный аудит
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit connection --profile vk
-PYTHONPATH=src .venv/bin/python -m cloud_audit resources --profile vk
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous
+./cloud-audit connection --profile vk
+./cloud-audit resources --profile vk
+./cloud-audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous
 ```
 
 Выберите искусственный объект, который разрешено проверять. По умолчанию выполняются все восемь правил. Ограничить выбор:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous --rules anonymous-read anonymous-list --policy audit-policy.example.json
+./cloud-audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous --rules anonymous-read anonymous-list --policy audit-policy.example.json
 ```
 
 Пример политики нужно заменить фактическим контекстом: собственные проекты, разрешённые внешние субъекты, необходимые операции, чувствительность и исключения. Текущие права автоматически не считаются необходимыми.
@@ -71,10 +63,10 @@ PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUC
 Из ответа audit возьмите report.id, snapshot_id. По сохранённому снимку без ключей:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --snapshot SNAPSHOT_ID --policy audit-policy.example.json
-PYTHONPATH=src .venv/bin/python -m cloud_audit report REPORT_ID --format markdown --output report.md
-PYTHONPATH=src .venv/bin/python -m cloud_audit history --resource BUCKET_NAME --severity high
-PYTHONPATH=src .venv/bin/python -m cloud_audit compare BEFORE_ID AFTER_ID --format markdown --output comparison.md
+./cloud-audit audit --profile vk --snapshot SNAPSHOT_ID --policy audit-policy.example.json
+./cloud-audit report REPORT_ID --format markdown --output report.md
+./cloud-audit history --resource BUCKET_NAME --severity high
+./cloud-audit compare BEFORE_ID AFTER_ID --format markdown --output comparison.md
 ```
 
 Офлайн-аудит повторяет интерпретацию сохранённых фактов и проб, не запускает новую сеть. Чтобы доказать исправление, нужен свежий сбор после ручного изменения. Для подтверждённого анонимного доступа сравнение требует нового отказа на тех же целях. Находка в принятом исключении остаётся находкой.
@@ -82,8 +74,8 @@ PYTHONPATH=src .venv/bin/python -m cloud_audit compare BEFORE_ID AFTER_ID --form
 ## Демонстрация без облака
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit resources --profile demo
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile demo --resource demo-public
+./cloud-audit resources --profile demo
+./cloud-audit audit --profile demo --resource demo-public
 ```
 
 Demo использует два фиксированных ресурса и demo-public-read. Результаты simulated; это проверка запуска/сохранения, не доказательство сканирования облака.

@@ -1,7 +1,6 @@
 """Аргументы и сборка зависимостей ступенчатого scan, отдельно от прежних одиночных команд."""
 from dataclasses import asdict
 from pathlib import Path
-import os
 
 from cloud_audit.configuration.environment import load_scan_settings
 from cloud_audit.configuration.policy import load_audit_policy
@@ -37,13 +36,13 @@ def add_scan_commands(commands):
         command.add_argument('--output', type=Path)
 
 
-def execute_scan(args, settings, reports, snapshots):
+def execute_scan(args, settings, reports, snapshots, configuration):
     """Создаёт signed-клиента только при полной паре ключей; внешний клиент всегда UNSIGNED."""
     runs = JsonScanRepository(settings.state_dir / 'data' / 'scans')
     if args.command == 'scan-report':
         run = runs.get(args.scan_id)
     else:
-        connection, authenticated = load_scan_settings(os.environ, external_only=args.external_only)
+        connection, authenticated = load_scan_settings(configuration, external_only=args.external_only)
         if args.all_buckets and not authenticated:
             raise AuditError('All-bucket selection requires credentials')
         if not 1 <= args.max_objects <= 20:

@@ -53,7 +53,7 @@ class ScanCliTests(unittest.TestCase):
             with (patch.dict(os.environ, {'CLOUD_AUDIT_STATE_DIR': directory}, clear=True),
                   patch('cloud_audit.providers.external.ExternalInspector.from_settings', return_value=external),
                   patch('cloud_audit.providers.s3.S3Provider.from_settings') as signed,
-                  patch('sys.argv', ['cloud-audit', 'scan', '--buckets', 'first', 'second']),
+                  patch('sys.argv', ['cloud-audit', '--no-env-file', 'scan', '--buckets', 'first', 'second']),
                   contextlib.redirect_stdout(io.StringIO()) as output):
                 code = main()
                 signed.assert_not_called()
@@ -61,7 +61,7 @@ class ScanCliTests(unittest.TestCase):
                 self.assertEqual(len(data['buckets']), 2)
                 self.assertEqual(code, 0)
             with (patch.dict(os.environ, {'CLOUD_AUDIT_STATE_DIR': directory}, clear=True),
-                  patch('sys.argv', ['cloud-audit', 'scan-report', data['id'], '--format', 'markdown']),
+                  patch('sys.argv', ['cloud-audit', '--no-env-file', 'scan-report', data['id'], '--format', 'markdown']),
                   contextlib.redirect_stdout(io.StringIO()) as output):
                 self.assertEqual(main(), 0)
                 self.assertIn('first', output.getvalue())
@@ -70,7 +70,7 @@ class ScanCliTests(unittest.TestCase):
         for args in [('scan', '--all-buckets'), ('scan', '--buckets', 'first', '--mutation-buckets', 'second')]:
             with tempfile.TemporaryDirectory() as directory:
                 with (patch.dict(os.environ, {'CLOUD_AUDIT_STATE_DIR': directory}, clear=True),
-                      patch('sys.argv', ['cloud-audit', *args]), contextlib.redirect_stderr(io.StringIO()),
+                      patch('sys.argv', ['cloud-audit', '--no-env-file', *args]), contextlib.redirect_stderr(io.StringIO()),
                       self.assertRaises(SystemExit) as caught):
                     main()
                 self.assertEqual(caught.exception.code, 2)
@@ -108,7 +108,7 @@ class ScanCliTests(unittest.TestCase):
             with (patch.dict(os.environ, {'CLOUD_AUDIT_STATE_DIR': directory, 'AWS_ACCESS_KEY_ID': 'synthetic', 'AWS_SECRET_ACCESS_KEY': 'synthetic'}, clear=True),
                   patch('cloud_audit.providers.s3.S3Provider.from_settings', return_value=provider),
                   patch('cloud_audit.providers.external.ExternalInspector.from_settings', return_value=external),
-                  patch('sys.argv', ['cloud-audit', 'scan', '--buckets', 'first', 'second', '--max-objects', '2']),
+                  patch('sys.argv', ['cloud-audit', '--no-env-file', 'scan', '--buckets', 'first', 'second', '--max-objects', '2']),
                   contextlib.redirect_stdout(io.StringIO()) as output):
                 self.assertEqual(main(), 3)
             data = json.loads(output.getvalue())

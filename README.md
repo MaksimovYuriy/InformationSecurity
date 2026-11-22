@@ -4,36 +4,32 @@
 
 ## Быстрый запуск
 
-Python 3.12 или новее, из корня репозитория:
+В подготовленном проекте достаточно одной команды; замени имя учебного бакета:
+
+```bash
+./cloud-audit scan --buckets my-training-bucket
+```
+
+`.env` из текущего каталога загружается автоматически как данные, без shell. Пара ключей включает внутренний этап; без ключей выполняется внешний. Мутационные пробы по умолчанию выключены. [Краткая инструкция](docs/MANUAL_TEST.md).
+
+Первая установка на новом компьютере (Python 3.12+):
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-PYTHONPATH=src .venv/bin/python -m cloud_audit check
-PYTHONPATH=src .venv/bin/python -m cloud_audit --help
+.venv/bin/python -m pip install -r requirements.txt -e .
 ```
 
-Для живого S3 нужны переменные окружения из `.env.example`. Имя бакета передаётся через `--resource`; настройки подключения общие для нескольких бакетов. Приложение не загружает `.env` автоматически. Порядок безопасной настройки — в [руководстве](docs/USER_GUIDE.md).
+`./cloud-audit` использует локальную `.venv`, активация и PYTHONPATH не нужны. После активации `.venv` также доступна установленная команда `cloud-audit`. Процессное окружение имеет приоритет над `.env`; общие `--env-file PATH` и `--no-env-file` ставятся перед подкомандой.
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit scan --targets scan-targets.example.json
-PYTHONPATH=src .venv/bin/python -m cloud_audit scan --all-buckets
-PYTHONPATH=src .venv/bin/python -m cloud_audit resources --profile vk
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile vk --resource BUCKET_NAME --objects synthetic.txt --probe-anonymous
-PYTHONPATH=src .venv/bin/python -m cloud_audit report REPORT_ID --format markdown --output report.md
-PYTHONPATH=src .venv/bin/python -m cloud_audit history --resource BUCKET_NAME
-PYTHONPATH=src .venv/bin/python -m cloud_audit compare BEFORE_ID AFTER_ID
+./cloud-audit scan --buckets bucket-one bucket-two
+./cloud-audit scan --all-buckets
+./cloud-audit scan --targets scan-targets.example.json
+./cloud-audit scan-report SCAN_ID --format markdown --output report.md
+./cloud-audit audit --profile demo --resource demo-public
 ```
 
-Выбирайте искусственные файлы. Без двух явных флагов мутационные пробы выключены. Обычный аудитор настройки бакета не исправляет. Повторный анализ через `audit --profile vk --snapshot SNAPSHOT_ID` не обращается к облаку и не является новой проверкой исправления.
-
-Для знакомства без ключей:
-
-```bash
-PYTHONPATH=src .venv/bin/python -m cloud_audit audit --profile demo --resource demo-public
-```
-
-Demo выдаёт simulated, не реальную оценку безопасности.
+Demo выдаёт simulated. Обычный аудитор настройки не исправляет. Офлайн-аудит сохранённого снимка не является новой проверкой исправления. Отдельный сервер не нужен.
 
 ## Структура одного приложения
 
@@ -64,6 +60,7 @@ src/cloud_audit/
 - [Ступенчатая проверка нескольких бакетов](docs/STAGED_SCAN.md)
 - [Все правила и порядок сканирования](docs/SCANNING.md)
 - [Обоснование выбора правил](docs/rules/RULE_CATALOG.md)
+- [Пошаговая самостоятельная проверка](docs/MANUAL_TEST.md)
 - [Установка, команды и демонстрация](docs/USER_GUIDE.md)
 - [Тестирование и перечень сценариев](docs/TESTING.md)
 - [Матрица соответствия исходному заданию](docs/ACCEPTANCE_MATRIX.md)

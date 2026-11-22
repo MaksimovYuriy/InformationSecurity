@@ -47,7 +47,9 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 | [test_staged_cli.py](../tests/test_staged_cli.py) | Режимы ключей, scan/scan-report, приватность/согласованность сводок и полный pipeline двух бакетов. | 7 |
 | [test_staged_fixture.py](../tests/test_staged_fixture.py) | Ограниченный реальный стенд, owned-уборка и подтверждения операций из отдельных исходных запусков. | 3 |
 
-Всего явно объявлено **167 тестовых методов**. Подсценарии subTest (в том числе 24 сочетания приёмочной матрицы) в это число отдельно не прибавляются.
+| [test_local_environment.py](../tests/test_local_environment.py) | Безопасная автозагрузка .env, приоритет окружения, ошибки, CLI и установленный launcher без PYTHONPATH. | 7 |
+
+Всего явно объявлено **174 тестовых методов**. Подсценарии subTest (в том числе 24 сочетания приёмочной матрицы) в это число отдельно не прибавляются.
 
 ### `test_acceptance.py`
 
@@ -453,3 +455,23 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 - `test_cleanup_continues_after_a_bucket_error_and_removes_versions`
 - `test_no_owned_buckets_means_no_cloud_cleanup_requests`
 - `test_public_evidence_may_come_from_separate_runs_but_requires_clean_verified_mutations`
+
+## Удобный локальный запуск
+
+После итерации 11 добавлено семь новых тестов test_local_environment.py: загрузка/приоритет без изменения os.environ, кавычки/комментарии/неисполнение shell, ошибки/лимит/редакция секретов, CLI default/explicit/disabled .env, help/version, установленная консольная команда и корневой launcher без PYTHONPATH. Установка pip install -e . проверена в локальной .venv. Два installed-теста пропускаются, если пакет в тестовом интерпретаторе ещё не установлен; в рабочей проверке прошли все семь без пропусков. Повторно проверены затронутые staged-, bootstrap- и структурные тесты; полного нового прогона всех 174 методов не было.
+
+Класс `LocalEnvironmentTests`:
+
+- `test_optional_file_and_process_environment_take_precedence_without_mutation`
+- `test_quotes_comments_and_shell_expressions_are_literal`
+- `test_invalid_or_oversized_file_never_exposes_values`
+
+Класс `LocalEnvironmentCliTests`:
+
+- `test_check_loads_current_directory_file_and_explicit_file`
+- `test_help_and_version_ignore_invalid_dotenv_and_missing_explicit_file_is_controlled`
+
+Класс `InstalledCommandTests`:
+
+- `test_installed_command_runs_without_pythonpath`
+- `test_project_launcher_runs_without_activation`

@@ -22,6 +22,7 @@ from cloud_audit.models.history import HistoryQuery
 from cloud_audit.models.security import FINDING_STATUSES
 from cloud_audit.services.history import AuditHistoryService
 from cloud_audit.configuration.policy import load_audit_policy
+from cloud_audit.configuration.dotenv import load_environment
 from cloud_audit.errors import ConfigurationError
 from cloud_audit.configuration.environment import load_settings, load_s3_settings
 from cloud_audit.providers.demo import DemoProvider
@@ -39,6 +40,9 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(description='Cloud storage audit')
     parser.add_argument('--version', action='version', version=__version__)
+    config = parser.add_mutually_exclusive_group()
+    config.add_argument('--env-file', type=Path, help='Read this dotenv file instead of .env in the current directory')
+    config.add_argument('--no-env-file', action='store_true', help='Use only process environment variables')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('check', help='Check local environment')
     for name in ('connection', 'resources', 'audit', 'report', 'collect', 'snapshot', 'history', 'compare', 'import-reports'):
@@ -101,14 +105,16 @@ def main() -> int:
                                             args.allow_write_probes)
             except ValueError:
                 raise AuditError('Invalid probe options: at most 20 explicit keys; write probes require --probe-anonymous') from None
-        settings = load_settings(os.environ)
+        configuration = load_environment(os.environ, None if args.no_env_file else args.env_file or Path('.env'),
+                                         required=args.env_file is not None)
+        settings = load_settings(configuration)
         logging.basicConfig(level=settings.log_level, format='%(levelname)s %(message)s')
         environment = EnvironmentService(settings, LocalStateStorage(settings.state_dir)).check()
         provider = DemoProvider()
         if (args.command in ('connection', 'resources', 'audit', 'collect') and getattr(args, 'profile', 'demo') == 'vk'
                 and not (args.command == 'audit' and args.snapshot)):
             from cloud_audit.providers.s3 import S3Provider
-            provider = S3Provider.from_settings(load_s3_settings(os.environ))
+            provider = S3Provider.from_settings(load_s3_settings(configuration))
         reports = SqliteReportRepository(settings.state_dir / 'data' / 'audit.sqlite3',
                                         legacy=JsonReportRepository(settings.state_dir / 'data'))
         service = ProfileService(provider, reports)
@@ -116,7 +122,7 @@ def main() -> int:
         snapshots = JsonSnapshotRepository(settings.state_dir / 'data' / 'snapshots')
         if args.command in ('scan', 'scan-report'):
             from cloud_audit.scan_cli import execute_scan
-            output = execute_scan(args, settings, reports, snapshots)
+            output = execute_scan(args, settings, reports, snapshots, configuration)
         elif args.command == 'check':
             output = {'version': __version__, **asdict(environment)}
         elif args.command == 'connection':

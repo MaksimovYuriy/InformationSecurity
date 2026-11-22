@@ -11,6 +11,7 @@ from uuid import uuid4
 from botocore.exceptions import BotoCoreError, ClientError
 from botocore.parsers import ResponseParserError
 from cloud_audit.configuration.environment import load_s3_settings
+from cloud_audit.configuration.dotenv import load_environment
 from cloud_audit.providers.s3 import S3Provider
 from cloud_audit.reports.formatting import write_document
 from cloud_audit.storage.state import LocalStateStorage
@@ -75,9 +76,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-training-fixture', action='store_true', required=True)
     parser.parse_args()
-    provider = S3Provider.from_settings(load_s3_settings(os.environ))
+    configuration = load_environment(os.environ)
+    provider = S3Provider.from_settings(load_s3_settings(configuration))
     client = provider._client
-    state = Path(os.environ.get('CLOUD_AUDIT_STATE_DIR', '.state'))
+    state = Path(configuration.get('CLOUD_AUDIT_STATE_DIR', '.state'))
     LocalStateStorage(state).prepare()
     nonce = uuid4().hex
     names = tuple('cloud-audit-stage-' + nonce[:20] + '-' + suffix for suffix in ('closed', 'public', 'object'))
@@ -89,11 +91,11 @@ def main():
     residue = state / 'data' / ('staged-residue-' + nonce + '.json')
     def invoke(label, file, unsigned=False):
         """Запускает публичный CLI отдельным процессом; сохраняет только контролируемые факты и идентификаторы."""
-        env = dict(os.environ)
+        env = dict(configuration)
         if unsigned:
             env = {k: v for k, v in env.items() if not k.startswith('AWS_')}
         started = perf_counter()
-        process = subprocess.run([sys.executable, '-m', 'cloud_audit', 'scan', '--targets', str(file), '--max-objects', '3'],
+        process = subprocess.run([sys.executable, '-m', 'cloud_audit', '--no-env-file', 'scan', '--targets', str(file), '--max-objects', '3'],
                                  capture_output=True, text=True, env=env, timeout=180)
         if process.returncode not in (0, 3):
             raise ValueError('Scan CLI failed; raw response withheld')

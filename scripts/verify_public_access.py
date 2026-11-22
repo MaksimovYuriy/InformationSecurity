@@ -15,6 +15,7 @@ from cloud_audit.services.snapshots import SnapshotService
 from cloud_audit.models.security import AuditPolicy
 from cloud_audit.models.snapshot import CollectionOptions
 from cloud_audit.configuration.environment import load_s3_settings
+from cloud_audit.configuration.dotenv import load_environment
 from cloud_audit.providers.s3 import S3Provider
 from cloud_audit.storage.snapshots import JsonSnapshotRepository
 from cloud_audit.storage.json_reports import JsonReportRepository
@@ -28,7 +29,7 @@ def main():
     parser.add_argument('--run-training-fixture', action='store_true', required=True,
                         help='Create a temporary bucket and briefly publish only synthetic read/list data')
     parser.parse_args()
-    provider = S3Provider.from_settings(load_s3_settings(os.environ))
+    provider = S3Provider.from_settings(load_s3_settings(load_environment(os.environ)))
     client = provider._client
     bucket = f'cloud-audit-lab-{uuid4().hex}'
     key = 'synthetic-read-fixture.txt'
